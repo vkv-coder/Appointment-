@@ -49,6 +49,8 @@
   .toprow{display:flex;justify-content:space-between;align-items:center;}
   footer{text-align:center;margin-top:20px;}
   footer a{font-size:12px;color:var(--muted);}
+  .date3{display:flex;gap:8px;}
+  .date3 select{flex:1;padding:12px 8px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;background:#fff;}
 </style>
 </head>
 <body>
@@ -115,7 +117,12 @@
       <select id="bookDoctor" onchange="onDoctorChange()"><option value="">Any Provider</option></select>
 
       <label>Preferred Date <span class="req">*</span></label>
-      <input type="date" id="bookDate" onchange="onDateChange()">
+      <input type="hidden" id="bookDate">
+      <div class="date3">
+        <select id="bookDate_d"></select>
+        <select id="bookDate_m"></select>
+        <select id="bookDate_y"></select>
+      </div>
 
       <div id="availabilityNote"></div>
 
@@ -170,6 +177,35 @@ let clinicsCache = [];
 let scheduleCache = [];
 let ownerInfo = null;
 
+// Custom Day/Month/Year picker - always dd-mm-yyyy, independent of device locale
+function initDatePicker(hiddenId, onChangeCallback){
+  const hidden = document.getElementById(hiddenId);
+  const dSel = document.getElementById(hiddenId + '_d');
+  const mSel = document.getElementById(hiddenId + '_m');
+  const ySel = document.getElementById(hiddenId + '_y');
+
+  for(let d=1; d<=31; d++) dSel.innerHTML += `<option value="${String(d).padStart(2,'0')}">${String(d).padStart(2,'0')}</option>`;
+  const months = ['01-Jan','02-Feb','03-Mar','04-Apr','05-May','06-Jun','07-Jul','08-Aug','09-Sep','10-Oct','11-Nov','12-Dec'];
+  months.forEach((m,i) => mSel.innerHTML += `<option value="${String(i+1).padStart(2,'0')}">${m}</option>`);
+  const thisYear = new Date().getFullYear();
+  for(let y=thisYear; y<=thisYear+1; y++) ySel.innerHTML += `<option value="${y}">${y}</option>`;
+
+  const today = new Date();
+  dSel.value = String(today.getDate()).padStart(2,'0');
+  mSel.value = String(today.getMonth()+1).padStart(2,'0');
+  ySel.value = String(today.getFullYear());
+
+  function updateHidden(){
+    hidden.value = `${ySel.value}-${mSel.value}-${dSel.value}`;
+    hidden.dispatchEvent(new Event('change'));
+  }
+  dSel.addEventListener('change', updateHidden);
+  mSel.addEventListener('change', updateHidden);
+  ySel.addEventListener('change', updateHidden);
+  if(onChangeCallback) hidden.addEventListener('change', onChangeCallback);
+  updateHidden();
+}
+
 function genSlots(startStr, endStr){
   const slots = [];
   let [h,m] = startStr.split(':').map(Number);
@@ -201,7 +237,7 @@ window.onload = async () => {
   document.getElementById('clinicTitle').textContent = owner.clinic_group_name;
   document.getElementById('clinicSub').textContent = owner.category ? `Book your ${owner.category} appointment` : 'Book your appointment';
 
-  document.getElementById('bookDate').min = new Date().toISOString().split('T')[0];
+  initDatePicker('bookDate', onDateChange);
 
   const { data } = await sb.from('da_doctors').select('*').eq('owner_id', OWNER_ID).order('name');
   doctorsCache = data || [];
@@ -317,7 +353,7 @@ function updateAvailabilityNote(){
     const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][r.day_of_week];
     const clinic = clinicsCache.find(c => c.id === r.clinic_id);
     if(!byDay[dayName]) byDay[dayName] = [];
-    byDay[dayName].push(`${r.session === 'both' ? 'Morning & Evening' : (r.session.charAt(0).toUpperCase()+r.session.slice(1))} at ${clinic ? clinic.name : ''}`);
+    byDay[dayName].push(`${r.session === 'both' ? 'Morning & Evening' : r.session === 'full_day' ? `Full Day (${r.morning_start ? r.morning_start.slice(0,5) : ''}-${r.morning_end ? r.morning_end.slice(0,5) : ''})` : (r.session.charAt(0).toUpperCase()+r.session.slice(1))} at ${clinic ? clinic.name : ''}`);
   });
   const summary = Object.entries(byDay).map(([day, items]) => `${day}: ${items.join('; ')}`).join('<br>');
   note.innerHTML = `<div class="msg" style="background:var(--mint);color:var(--teal);">${summary}</div>`;
@@ -343,7 +379,7 @@ function restrictSessionOptions(){
   clearMsg('bookMsg');
   const availableSessions = new Set();
   rows.forEach(r => {
-    if(r.session === 'both'){ availableSessions.add('morning'); availableSessions.add('evening'); }
+    if(r.session === 'both' || r.session === 'full_day'){ availableSessions.add('morning'); availableSessions.add('evening'); }
     else availableSessions.add(r.session);
   });
   sessionSel.querySelectorAll('option').forEach(o => {
@@ -364,7 +400,7 @@ async function loadInstantSlots(){
   if(!doctorId || !date){ clinicSel.innerHTML = ''; slotSel.innerHTML = ''; return; }
 
   const dow = new Date(date + 'T00:00:00').getDay();
-  const rows = scheduleCache.filter(s => s.doctor_id === doctorId && s.day_of_week === dow && (s.session === 'both' || s.session === session));
+  const rows = scheduleCache.filter(s => s.doctor_id === doctorId && s.day_of_week === dow && (s.session === 'both' || s.session === 'full_day' || s.session === session));
   clinicSel.innerHTML = rows.length
     ? rows.map(r => {
         const c = clinicsCache.find(cl => cl.id === r.clinic_id);

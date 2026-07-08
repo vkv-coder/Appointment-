@@ -37,6 +37,8 @@
   .apptRow:last-child{border-bottom:none;}
   .clinicHead{font-weight:700;color:var(--ink);margin:14px 0 6px;font-size:14px;}
   .msg{font-size:13px;padding:8px 10px;border-radius:8px;margin-top:8px;background:var(--mint);color:var(--teal);}
+  .date3{display:flex;gap:8px;margin-top:6px;}
+  .date3 select{flex:1;padding:11px 6px;border:1.5px solid var(--line);border-radius:10px;font-size:13.5px;background:#fff;}
   .msg.err{background:#FBDADA;color:#B12E2E;}
   .listItem{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
   .listItem:last-child{border-bottom:none;}
@@ -94,7 +96,12 @@
     <div id="scheduleTab" class="hidden">
       <div class="card">
         <label>Select Date</label>
-        <input type="date" id="scheduleDate" onchange="loadSchedule()">
+        <input type="hidden" id="scheduleDate">
+        <div class="date3">
+          <select id="scheduleDate_d"></select>
+          <select id="scheduleDate_m"></select>
+          <select id="scheduleDate_y"></select>
+        </div>
       </div>
       <div id="scheduleView"></div>
     </div>
@@ -149,9 +156,16 @@
           <option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
         </select>
         <label>Session</label>
-        <select id="schSession">
-          <option value="morning">Morning</option><option value="evening">Evening</option><option value="both">Both</option>
+        <select id="schSession" onchange="onSchSessionChange()">
+          <option value="morning">Morning</option><option value="evening">Evening</option><option value="both">Both (default hours)</option>
+          <option value="full_day">Full Day (custom hours, e.g. 9am-6pm)</option>
         </select>
+        <div id="schCustomHours" class="hidden">
+          <div class="row2">
+            <div><label>Start Time</label><input type="time" id="schStartTime" value="09:00"></div>
+            <div><label>End Time</label><input type="time" id="schEndTime" value="18:00"></div>
+          </div>
+        </div>
         <button class="btn wide" onclick="addSchedule()">Add Schedule Row</button>
       </div>
     </div>
@@ -159,9 +173,19 @@
     <div id="exportTab" class="hidden">
       <div class="card">
         <label>From Date</label>
-        <input type="date" id="exportFrom">
+        <input type="hidden" id="exportFrom">
+        <div class="date3">
+          <select id="exportFrom_d"></select>
+          <select id="exportFrom_m"></select>
+          <select id="exportFrom_y"></select>
+        </div>
         <label>To Date</label>
-        <input type="date" id="exportTo">
+        <input type="hidden" id="exportTo">
+        <div class="date3">
+          <select id="exportTo_d"></select>
+          <select id="exportTo_m"></select>
+          <select id="exportTo_y"></select>
+        </div>
         <button class="btn wide" onclick="exportExcel()">Download Excel</button>
         <div id="exportMsg"></div>
       </div>
@@ -181,6 +205,37 @@ let OWNER = null;
 let doctors = [], clinics = [], schedule = [];
 let staffCurrentPatient = null;
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// Custom Day/Month/Year picker - always dd-mm-yyyy, independent of device locale
+function initDatePicker(hiddenId, onChangeCallback){
+  const hidden = document.getElementById(hiddenId);
+  const dSel = document.getElementById(hiddenId + '_d');
+  const mSel = document.getElementById(hiddenId + '_m');
+  const ySel = document.getElementById(hiddenId + '_y');
+  if(!dSel || !mSel || !ySel) return;
+
+  dSel.innerHTML = ''; mSel.innerHTML = ''; ySel.innerHTML = '';
+  for(let d=1; d<=31; d++) dSel.innerHTML += `<option value="${String(d).padStart(2,'0')}">${String(d).padStart(2,'0')}</option>`;
+  const months = ['01-Jan','02-Feb','03-Mar','04-Apr','05-May','06-Jun','07-Jul','08-Aug','09-Sep','10-Oct','11-Nov','12-Dec'];
+  months.forEach((m,i) => mSel.innerHTML += `<option value="${String(i+1).padStart(2,'0')}">${m}</option>`);
+  const thisYear = new Date().getFullYear();
+  for(let y=thisYear; y<=thisYear+1; y++) ySel.innerHTML += `<option value="${y}">${y}</option>`;
+
+  const today = new Date();
+  dSel.value = String(today.getDate()).padStart(2,'0');
+  mSel.value = String(today.getMonth()+1).padStart(2,'0');
+  ySel.value = String(today.getFullYear());
+
+  function updateHidden(){
+    hidden.value = `${ySel.value}-${mSel.value}-${dSel.value}`;
+    hidden.dispatchEvent(new Event('change'));
+  }
+  dSel.addEventListener('change', updateHidden);
+  mSel.addEventListener('change', updateHidden);
+  ySel.addEventListener('change', updateHidden);
+  if(onChangeCallback) hidden.addEventListener('change', onChangeCallback);
+  updateHidden();
+}
 
 window.onload = () => {
   const savedOwner = localStorage.getItem('da_owner');
@@ -224,7 +279,9 @@ async function enterDash(){
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
   document.getElementById('ownerTelegramId').value = OWNER.telegram_chat_id || '';
   await refreshData();
-  document.getElementById('scheduleDate').value = new Date().toISOString().split('T')[0];
+  initDatePicker('scheduleDate', loadSchedule);
+  initDatePicker('exportFrom');
+  initDatePicker('exportTo');
   loadPending();
 }
 
@@ -291,7 +348,7 @@ async function loadPending(){
     const candidateDoctors = doctors.filter(doc => {
       if(a.doctor_id && doc.id !== a.doctor_id) return false;
       const rows = getDoctorDaySchedule(doc.id, dow);
-      return rows.some(r => r.session === 'both' || r.session === a.preferred_session);
+      return rows.some(r => r.session === 'both' || r.session === 'full_day' || r.session === a.preferred_session);
     });
     const doctorOptions = candidateDoctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
 
@@ -325,7 +382,7 @@ function wireSlotDropdowns(card){
 
   async function refreshClinics(){
     const doctorId = doctorSel.value;
-    const rows = getDoctorDaySchedule(doctorId, dow).filter(r => r.session === 'both' || r.session === session);
+    const rows = getDoctorDaySchedule(doctorId, dow).filter(r => r.session === 'both' || r.session === 'full_day' || r.session === session);
     clinicSel.innerHTML = rows.map(r => `<option value="${r.clinic_id}" data-ms="${r.morning_start}" data-me="${r.morning_end}" data-es="${r.evening_start}" data-ee="${r.evening_end}">${clinicName(r.clinic_id)}</option>`).join('');
     await refreshSlots();
   }
@@ -432,7 +489,12 @@ function renderStaffBookingForm(patient){
     <label>Provider</label>
     <select id="sBookDoctor">${doctorOptions}</select>
     <label>Date</label>
-    <input type="date" id="sBookDate" min="${new Date().toISOString().split('T')[0]}">
+    <input type="hidden" id="sBookDate">
+    <div class="date3">
+      <select id="sBookDate_d"></select>
+      <select id="sBookDate_m"></select>
+      <select id="sBookDate_y"></select>
+    </div>
     <label>Session</label>
     <select id="sBookSession"><option value="morning">Morning</option><option value="evening">Evening</option></select>
     <label>Location</label>
@@ -462,7 +524,7 @@ function renderStaffBookingForm(patient){
     if(!clinic_id || !dateInp.value){ slotSel.innerHTML = ''; return; }
 
     const dow = new Date(dateInp.value + 'T00:00:00').getDay();
-    const row = schedule.find(s => s.doctor_id === doctorSel.value && s.clinic_id === clinic_id && s.day_of_week === dow && (s.session === 'both' || s.session === sessionSel.value));
+    const row = schedule.find(s => s.doctor_id === doctorSel.value && s.clinic_id === clinic_id && s.day_of_week === dow && (s.session === 'both' || s.session === 'full_day' || s.session === sessionSel.value));
 
     if(!row){
       slotSel.innerHTML = '<option value="">Not working this day/session at this location</option>';
@@ -483,10 +545,10 @@ function renderStaffBookingForm(patient){
   }
 
   doctorSel.addEventListener('change', () => { populateLocationsForDoctor(); refreshSlots(); });
-  dateInp.addEventListener('change', refreshSlots);
   sessionSel.addEventListener('change', refreshSlots);
   clinicSel.addEventListener('change', refreshSlots);
 
+  initDatePicker('sBookDate', refreshSlots);
   populateLocationsForDoctor();
 }
 
@@ -570,7 +632,7 @@ function renderSettingsLists(){
 
   const schArea = document.getElementById('scheduleListArea');
   schArea.innerHTML = schedule.length ? schedule.map(s => `
-    <div class="listItem"><span>${docName(s.doctor_id)} - ${clinicName(s.clinic_id)} - ${DAY_NAMES[s.day_of_week]} (${s.session})</span>
+    <div class="listItem"><span>${docName(s.doctor_id)} - ${clinicName(s.clinic_id)} - ${DAY_NAMES[s.day_of_week]} (${s.session === 'full_day' ? 'Full Day ' + s.morning_start.slice(0,5) + '-' + s.morning_end.slice(0,5) : s.session})</span>
     <button class="btn small reject" onclick="deleteSchedule('${s.id}')">Delete</button></div>
   `).join('') : '<div class="empty">No schedule rows yet</div>';
 
@@ -632,13 +694,29 @@ async function toggleBookingMode(id, currentMode){
   await refreshData();
 }
 
+function onSchSessionChange(){
+  const val = document.getElementById('schSession').value;
+  document.getElementById('schCustomHours').classList.toggle('hidden', val !== 'full_day');
+}
+
 async function addSchedule(){
   const doctor_id = document.getElementById('schDoctor').value;
   const clinic_id = document.getElementById('schClinic').value;
   const day_of_week = parseInt(document.getElementById('schDay').value);
   const session = document.getElementById('schSession').value;
   if(!doctor_id || !clinic_id){ alert('Add at least one clinic and doctor first'); return; }
-  await sb.from('da_schedule').insert({ owner_id: OWNER.id, doctor_id, clinic_id, day_of_week, session });
+
+  const row = { owner_id: OWNER.id, doctor_id, clinic_id, day_of_week, session };
+  if(session === 'full_day'){
+    const start = document.getElementById('schStartTime').value;
+    const end = document.getElementById('schEndTime').value;
+    if(!start || !end){ alert('Set start and end time for Full Day'); return; }
+    row.morning_start = start;
+    row.morning_end = end;
+    row.evening_start = start;
+    row.evening_end = end;
+  }
+  await sb.from('da_schedule').insert(row);
   await refreshData();
 }
 
