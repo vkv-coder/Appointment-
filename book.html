@@ -432,6 +432,7 @@ async function submitInstant(){
 
 async function submitRequest(){
   clearMsg('bookMsg');
+  const doctor_id = document.getElementById('bookDoctor').value || null;
   const preferred_date = document.getElementById('bookDate').value;
   const preferred_session = document.getElementById('bookSession').value;
 
