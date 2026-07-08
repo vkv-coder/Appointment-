@@ -112,18 +112,35 @@
     <div class="divider"><span>Book Appointment</span></div>
     <div class="card">
       <label>Preferred Provider</label>
-      <select id="bookDoctor"><option value="">Any Provider</option></select>
+      <select id="bookDoctor" onchange="onDoctorChange()"><option value="">Any Provider</option></select>
 
       <label>Preferred Date <span class="req">*</span></label>
-      <input type="date" id="bookDate">
+      <input type="date" id="bookDate" onchange="onDateChange()">
 
-      <label>Preferred Time <span class="req">*</span></label>
-      <select id="bookSession">
-        <option value="morning">Morning</option>
-        <option value="evening">Evening</option>
-      </select>
+      <!-- REQUEST MODE fields -->
+      <div id="requestModeFields">
+        <label>Preferred Time <span class="req">*</span></label>
+        <select id="bookSession">
+          <option value="morning">Morning</option>
+          <option value="evening">Evening</option>
+        </select>
+        <button class="btn" onclick="submitRequest()">Send Appointment Request</button>
+      </div>
 
-      <button class="btn" onclick="submitRequest()">Send Appointment Request</button>
+      <!-- INSTANT MODE fields -->
+      <div id="instantModeFields" class="hidden">
+        <label>Session</label>
+        <select id="instantSession" onchange="loadInstantSlots()">
+          <option value="morning">Morning</option>
+          <option value="evening">Evening</option>
+        </select>
+        <label>Location</label>
+        <select id="instantClinic" onchange="loadInstantSlots()"></select>
+        <label>Available Slot <span class="req">*</span></label>
+        <select id="instantSlot"></select>
+        <button class="btn" onclick="submitInstant()">Book Instantly</button>
+      </div>
+
       <div id="bookMsg"></div>
     </div>
 
@@ -147,7 +164,21 @@ const OWNER_ID = params.get('owner');
 
 let currentPatient = null;
 let doctorsCache = [];
+let clinicsCache = [];
+let scheduleCache = [];
 let ownerInfo = null;
+
+function genSlots(startStr, endStr){
+  const slots = [];
+  let [h,m] = startStr.split(':').map(Number);
+  const [eh,em] = endStr.split(':').map(Number);
+  while(h < eh || (h === eh && m < em)){
+    slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+    m += 30;
+    if(m >= 60){ m -= 60; h += 1; }
+  }
+  return slots;
+}
 
 function showMsg(el, text, type){ document.getElementById(el).innerHTML = `<div class="msg ${type}">${text}</div>`; }
 function clearMsg(el){ document.getElementById(el).innerHTML = ""; }
@@ -178,6 +209,11 @@ window.onload = async () => {
     o.value = d.id; o.textContent = d.name;
     sel.appendChild(o);
   });
+
+  const { data: cData } = await sb.from('da_clinics').select('*').eq('owner_id', OWNER_ID);
+  clinicsCache = cData || [];
+  const { data: sData } = await sb.from('da_schedule').select('*').eq('owner_id', OWNER_ID);
+  scheduleCache = sData || [];
 
   document.getElementById('loginCard').classList.remove('hidden');
 
@@ -245,9 +281,98 @@ function logout(){
   document.getElementById('loginPhone').value = '';
 }
 
+function onDoctorChange(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const doctor = doctorsCache.find(d => d.id === doctorId);
+  const isInstant = doctor && doctor.booking_mode === 'instant';
+  document.getElementById('requestModeFields').classList.toggle('hidden', isInstant);
+  document.getElementById('instantModeFields').classList.toggle('hidden', !isInstant);
+  clearMsg('bookMsg');
+  if(isInstant) loadInstantSlots();
+}
+
+function onDateChange(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const doctor = doctorsCache.find(d => d.id === doctorId);
+  if(doctor && doctor.booking_mode === 'instant') loadInstantSlots();
+}
+
+async function loadInstantSlots(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const date = document.getElementById('bookDate').value;
+  const session = document.getElementById('instantSession').value;
+  const clinicSel = document.getElementById('instantClinic');
+  const slotSel = document.getElementById('instantSlot');
+  if(!doctorId || !date){ clinicSel.innerHTML = ''; slotSel.innerHTML = ''; return; }
+
+  const dow = new Date(date + 'T00:00:00').getDay();
+  const rows = scheduleCache.filter(s => s.doctor_id === doctorId && s.day_of_week === dow && (s.session === 'both' || s.session === session));
+  clinicSel.innerHTML = rows.length
+    ? rows.map(r => {
+        const c = clinicsCache.find(cl => cl.id === r.clinic_id);
+        return `<option value="${r.clinic_id}" data-ms="${r.morning_start}" data-me="${r.morning_end}" data-es="${r.evening_start}" data-ee="${r.evening_end}">${c ? c.name : ''}</option>`;
+      }).join('')
+    : '<option value="">Not working that day</option>';
+
+  await refreshInstantTimeSlots();
+}
+
+async function refreshInstantTimeSlots(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const date = document.getElementById('bookDate').value;
+  const session = document.getElementById('instantSession').value;
+  const clinicSel = document.getElementById('instantClinic');
+  const slotSel = document.getElementById('instantSlot');
+  const opt = clinicSel.options[clinicSel.selectedIndex];
+  if(!opt || !opt.value){ slotSel.innerHTML = ''; return; }
+
+  const start = session === 'morning' ? opt.dataset.ms : opt.dataset.es;
+  const end = session === 'morning' ? opt.dataset.me : opt.dataset.ee;
+  const allSlots = genSlots(start, end);
+
+  const { data: taken } = await sb.from('da_appointments')
+    .select('confirmed_time')
+    .eq('confirmed_doctor_id', doctorId)
+    .eq('confirmed_clinic_id', clinicSel.value)
+    .eq('confirmed_date', date)
+    .eq('status', 'confirmed');
+  const takenTimes = (taken || []).map(t => t.confirmed_time ? t.confirmed_time.slice(0,5) : '');
+  const free = allSlots.filter(s => !takenTimes.includes(s));
+  slotSel.innerHTML = free.length ? free.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No free slots</option>';
+}
+document.getElementById('instantClinic') && document.getElementById('instantClinic').addEventListener('change', refreshInstantTimeSlots);
+
+async function submitInstant(){
+  clearMsg('bookMsg');
+  const doctor_id = document.getElementById('bookDoctor').value;
+  const preferred_date = document.getElementById('bookDate').value;
+  const preferred_session = document.getElementById('instantSession').value;
+  const clinic_id = document.getElementById('instantClinic').value;
+  const time = document.getElementById('instantSlot').value;
+
+  if(!preferred_date || !clinic_id || !time){ showMsg('bookMsg','Please select date, location and a slot','err'); return; }
+
+  const { error } = await sb.from('da_appointments').insert({
+    owner_id: OWNER_ID,
+    patient_id: currentPatient.id,
+    doctor_id,
+    preferred_session,
+    preferred_date,
+    status: 'confirmed',
+    confirmed_doctor_id: doctor_id,
+    confirmed_clinic_id: clinic_id,
+    confirmed_date: preferred_date,
+    confirmed_time: time,
+    booked_by: 'patient'
+  });
+
+  if(error){ showMsg('bookMsg','Could not book. That slot may have just been taken - try another.','err'); return; }
+  showMsg('bookMsg','Appointment booked and confirmed!','ok');
+  loadAppointments();
+}
+
 async function submitRequest(){
   clearMsg('bookMsg');
-  const doctor_id = document.getElementById('bookDoctor').value || null;
   const preferred_date = document.getElementById('bookDate').value;
   const preferred_session = document.getElementById('bookSession').value;
 

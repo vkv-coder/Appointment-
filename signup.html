@@ -59,6 +59,9 @@
     <label>Email (optional)</label>
     <input type="email" id="email" placeholder="you@email.com">
 
+    <label>Your Telegram Chat ID (optional)</label>
+    <input type="text" id="telegramId" placeholder="For free instant notifications on new requests">
+
     <label>Choose Username <span class="req">*</span></label>
     <input type="text" id="username" placeholder="Username for login">
 
@@ -93,6 +96,7 @@ async function submitSignup(){
   const owner_name = document.getElementById('ownerName').value.trim();
   const phone = document.getElementById('phone').value.trim();
   const email = document.getElementById('email').value.trim();
+  const telegram_chat_id = document.getElementById('telegramId').value.trim();
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
 
@@ -103,7 +107,7 @@ async function submitSignup(){
   }
 
   const { error } = await sb.from('da_owners').insert({
-    clinic_group_name, owner_name, category, phone, email: email || null, username, password, status: 'pending'
+    clinic_group_name, owner_name, category, phone, email: email || null, telegram_chat_id: telegram_chat_id || null, username, password, status: 'pending'
   });
 
   if(error){

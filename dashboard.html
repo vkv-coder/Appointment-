@@ -101,6 +101,14 @@
 
     <div id="settingsTab" class="hidden">
       <div class="card">
+        <div class="clinicHead">Your Account</div>
+        <label>Organisation Telegram Chat ID (optional)</label>
+        <input type="text" id="ownerTelegramId" placeholder="For free notifications on new requests">
+        <button class="btn small" style="margin-top:10px;" onclick="saveOwnerTelegram()">Save</button>
+        <div id="ownerTelegramMsg"></div>
+      </div>
+
+      <div class="card">
         <div class="clinicHead">Your Locations</div>
         <div id="clinicListArea"></div>
         <label>Add New Location</label>
@@ -118,6 +126,11 @@
         <input type="text" id="newDoctorName" placeholder="Doctor name">
         <input type="text" id="newDoctorTelegram" placeholder="Telegram Chat ID (optional)" style="margin-top:8px;">
         <input type="email" id="newDoctorEmail" placeholder="Email (optional)" style="margin-top:8px;">
+        <label>Booking Mode</label>
+        <select id="newDoctorMode">
+          <option value="request">Request Only (you confirm each booking)</option>
+          <option value="instant">Instant Book (user picks free slot directly)</option>
+        </select>
         <button class="btn wide" onclick="addDoctor()">Add Provider</button>
       </div>
 
@@ -207,9 +220,18 @@ async function enterDash(){
   document.getElementById('gateCard').classList.add('hidden');
   document.getElementById('mainDash').classList.remove('hidden');
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
+  document.getElementById('ownerTelegramId').value = OWNER.telegram_chat_id || '';
   await refreshData();
   document.getElementById('scheduleDate').value = new Date().toISOString().split('T')[0];
   loadPending();
+}
+
+async function saveOwnerTelegram(){
+  const val = document.getElementById('ownerTelegramId').value.trim();
+  await sb.from('da_owners').update({ telegram_chat_id: val || null }).eq('id', OWNER.id);
+  OWNER.telegram_chat_id = val || null;
+  localStorage.setItem('da_owner', JSON.stringify(OWNER));
+  document.getElementById('ownerTelegramMsg').innerHTML = '<div class="msg">Saved</div>';
 }
 
 async function refreshData(){
@@ -504,7 +526,7 @@ function renderSettingsLists(){
 
   const doctorArea = document.getElementById('doctorListArea');
   doctorArea.innerHTML = doctors.length ? doctors.map(d => `
-    <div class="listItem"><span>${d.name}</span>
+    <div class="listItem"><span>${d.name} <span class="pill" style="cursor:pointer;" onclick="toggleBookingMode('${d.id}','${d.booking_mode}')" title="Tap to switch mode">${d.booking_mode === 'instant' ? 'Instant Book' : 'Request Only'}</span></span>
     <button class="btn small reject" onclick="deleteDoctor('${d.id}')">Delete</button></div>
   `).join('') : '<div class="empty">No doctors added yet</div>';
 
@@ -540,8 +562,9 @@ async function addDoctor(){
   const name = document.getElementById('newDoctorName').value.trim();
   const telegram_chat_id = document.getElementById('newDoctorTelegram').value.trim();
   const email = document.getElementById('newDoctorEmail').value.trim();
+  const booking_mode = document.getElementById('newDoctorMode').value;
   if(!name){ alert('Enter doctor name'); return; }
-  await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null });
+  await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null, booking_mode });
   document.getElementById('newDoctorName').value = '';
   document.getElementById('newDoctorTelegram').value = '';
   document.getElementById('newDoctorEmail').value = '';
@@ -551,6 +574,12 @@ async function addDoctor(){
 async function deleteDoctor(id){
   if(!confirm('Delete this doctor? Related schedule rows will also be removed.')) return;
   await sb.from('da_doctors').delete().eq('id', id);
+  await refreshData();
+}
+
+async function toggleBookingMode(id, currentMode){
+  const newMode = currentMode === 'instant' ? 'request' : 'instant';
+  await sb.from('da_doctors').update({ booking_mode: newMode }).eq('id', id);
   await refreshData();
 }
 

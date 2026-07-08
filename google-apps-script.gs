@@ -23,11 +23,15 @@ function doPost(e) {
       handleNewOwnerSignup(payload.record);
     } else if (payload.table === "da_appointments") {
       if (payload.type === "INSERT") {
-        handleNewRequest(payload.record);
+        if (payload.record.status === "confirmed") {
+          handleConfirmed(payload.record, true);   // instant-booked
+        } else {
+          handleNewRequest(payload.record);
+        }
       } else if (payload.type === "UPDATE") {
         const wasConfirmed = payload.old_record && payload.old_record.status === "confirmed";
         const isConfirmed = payload.record.status === "confirmed";
-        if (isConfirmed && !wasConfirmed) handleConfirmed(payload.record);
+        if (isConfirmed && !wasConfirmed) handleConfirmed(payload.record, false);
       }
     }
 
@@ -84,8 +88,8 @@ function handleNewRequest(record) {
   MailApp.sendEmail(emailTo, "New Appointment Request - " + doctorLabel, text);
 }
 
-// ---------- confirmed appointment -> notify patient ----------
-function handleConfirmed(record) {
+// ---------- confirmed appointment -> notify user (and provider if instant-booked) ----------
+function handleConfirmed(record, isInstant) {
   const patient = sbGet("da_patients", "id", record.patient_id);
   const doctor = sbGet("da_doctors", "id", record.confirmed_doctor_id);
   const clinic = sbGet("da_clinics", "id", record.confirmed_clinic_id);
@@ -99,7 +103,21 @@ function handleConfirmed(record) {
     `Time: ${record.confirmed_time}`;
 
   if (patient && patient.telegram_id) sendTelegram(patient.telegram_id, text);
-  if (patient && patient.email) MailApp.sendEmail(patient.email, "Your Dental Appointment is Confirmed", text);
+  if (patient && patient.email) MailApp.sendEmail(patient.email, "Your Appointment is Confirmed", text);
+
+  if (isInstant) {
+    const owner = sbGet("da_owners", "id", record.owner_id);
+    const providerText =
+      `⚡ Instant Booking\n` +
+      `Patient: ${patient ? patient.name : "-"} (${patient ? patient.phone : "-"})\n` +
+      `Provider: ${doctor ? doctor.name : "-"}\n` +
+      `Location: ${clinic ? clinic.name : "-"}\n` +
+      `Date: ${record.confirmed_date}  Time: ${record.confirmed_time}`;
+    const chatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
+    sendTelegram(chatId, providerText);
+    const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
+    MailApp.sendEmail(emailTo, "Instant Booking - " + (doctor ? doctor.name : ""), providerText);
+  }
 }
 
 function sendTelegram(chatId, text) {
