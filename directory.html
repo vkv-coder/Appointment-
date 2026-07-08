@@ -28,6 +28,15 @@
 
   <select id="catFilter" onchange="renderList()">
     <option value="">All Categories</option>
+    <option>Doctors</option>
+    <option>CA/CS</option>
+    <option>Advocates</option>
+    <option>Management Consultants</option>
+    <option>Tax Consultant</option>
+    <option>Architects</option>
+    <option>Education/Tutors</option>
+    <option>Yoga</option>
+    <option>Salon</option>
   </select>
 
   <div id="list"></div>
@@ -43,25 +52,18 @@ let owners = [];
 window.onload = async () => {
   const { data } = await sb.from('da_owners').select('*').eq('status', 'approved').order('clinic_group_name');
   owners = data || [];
-
-  const cats = [...new Set(owners.map(o => o.category).filter(Boolean))];
-  const sel = document.getElementById('catFilter');
-  cats.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    sel.appendChild(o);
-  });
-
   renderList();
 };
 
 function renderList(){
   const filter = document.getElementById('catFilter').value;
   const list = document.getElementById('list');
-  const filtered = filter ? owners.filter(o => o.category === filter) : owners;
+  const filtered = filter ? owners.filter(o => o.broad_category === filter) : owners;
 
   if(filtered.length === 0){
-    list.innerHTML = '<div class="empty">No listings found</div>';
+    list.innerHTML = filter
+      ? `<div class="empty">No providers listed under "${filter}" yet - check back soon!</div>`
+      : '<div class="empty">No listings found</div>';
     return;
   }
 

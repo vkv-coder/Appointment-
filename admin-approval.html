@@ -69,7 +69,7 @@ async function loadOwners(){
     <div class="card">
       <div class="row"><b>${o.clinic_group_name}</b><span class="pill">${o.status.toUpperCase()}</span></div>
       <div class="detail">
-        Owner: ${o.owner_name} · ${o.category || 'No category'}<br>
+        Owner: ${o.owner_name} · ${o.broad_category || ''}${o.broad_category && o.category ? ' - ' : ''}${o.category || 'No category'}<br>
         Phone: ${o.phone}${o.email ? ' · ' + o.email : ''}<br>
         Username: ${o.username}
       </div>

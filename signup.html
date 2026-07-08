@@ -31,21 +31,25 @@
   <div class="sub">Fill this once. Your account will be reviewed and approved before you can log in. &nbsp;<a href="faq.html" style="color:var(--teal);">How does this work?</a></div>
 
   <div class="card" id="formCard">
-    <label>Category / Specialty <span class="req">*</span></label>
-    <select id="categorySelect" onchange="toggleOtherCategory()">
-      <option value="">Select category</option>
-      <option>Dentist</option>
-      <option>Psychiatrist</option>
-      <option>Homeopath</option>
-      <option>General Physician</option>
-      <option>Dermatologist (Skin Specialist)</option>
-      <option>Physiotherapist</option>
-      <option>Dietitian / Nutritionist</option>
-      <option>Chartered Accountant</option>
-      <option>Lawyer / Advocate</option>
-      <option value="Other">Other (type below)</option>
+    <label>Broad Category <span class="req">*</span></label>
+    <select id="broadCategorySelect" onchange="onBroadCategoryChange()">
+      <option value="">Select broad category</option>
+      <option>Doctors</option>
+      <option>CA/CS</option>
+      <option>Advocates</option>
+      <option>Management Consultants</option>
+      <option>Tax Consultant</option>
+      <option>Architects</option>
+      <option>Education/Tutors</option>
+      <option>Yoga</option>
+      <option>Salon</option>
     </select>
-    <input type="text" id="categoryOther" placeholder="Type your category" style="margin-top:8px;" class="hidden">
+
+    <label>Specialty <span class="req">*</span></label>
+    <select id="categorySelect" onchange="toggleOtherCategory()">
+      <option value="">Select broad category first</option>
+    </select>
+    <input type="text" id="categoryOther" placeholder="Type your specialty" style="margin-top:8px;" class="hidden">
 
     <label>Organisation / Provider Name <span class="req">*</span></label>
     <input type="text" id="clinicName" placeholder="e.g. Doshi Dental Clinics">
@@ -84,12 +88,35 @@ const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const SUB_CATEGORIES = {
+  'Doctors': ['Dentist','Psychiatrist','Homeopath','General Physician','Dermatologist (Skin Specialist)','Physiotherapist','Dietitian / Nutritionist','Gynecologist','Pediatrician','Orthopedic','ENT Specialist'],
+  'CA/CS': ['Chartered Accountant','Company Secretary','Tax Auditor'],
+  'Advocates': ['Civil Lawyer','Criminal Lawyer','Corporate Lawyer','Family Lawyer','Property Lawyer'],
+  'Management Consultants': ['Business Strategy Consultant','HR Consultant','IT Consultant','Financial Consultant'],
+  'Tax Consultant': ['Income Tax Consultant','GST Consultant'],
+  'Architects': ['Residential Architect','Commercial Architect','Interior Designer'],
+  'Education/Tutors': ['School Tuition','Competitive Exam Coaching','Music/Art Teacher','Language Teacher'],
+  'Yoga': ['Yoga Instructor','Meditation Coach'],
+  'Salon': ['Hair Stylist','Beautician','Spa/Massage','Makeup Artist']
+};
+
+function onBroadCategoryChange(){
+  const broad = document.getElementById('broadCategorySelect').value;
+  const sel = document.getElementById('categorySelect');
+  const list = SUB_CATEGORIES[broad] || [];
+  sel.innerHTML = '<option value="">Select specialty</option>' +
+    list.map(s => `<option>${s}</option>`).join('') +
+    '<option value="Other">Other (type below)</option>';
+  document.getElementById('categoryOther').classList.add('hidden');
+}
+
 function toggleOtherCategory(){
   const sel = document.getElementById('categorySelect').value;
   document.getElementById('categoryOther').classList.toggle('hidden', sel !== 'Other');
 }
 
 async function submitSignup(){
+  const broad_category = document.getElementById('broadCategorySelect').value;
   const catSel = document.getElementById('categorySelect').value;
   const category = catSel === 'Other' ? document.getElementById('categoryOther').value.trim() : catSel;
   const clinic_group_name = document.getElementById('clinicName').value.trim();
@@ -101,13 +128,13 @@ async function submitSignup(){
   const password = document.getElementById('password').value;
 
   const msgEl = document.getElementById('msg');
-  if(!category || !clinic_group_name || !owner_name || !phone || !username || !password){
+  if(!broad_category || !category || !clinic_group_name || !owner_name || !phone || !username || !password){
     msgEl.innerHTML = '<div class="msg err">Please fill all mandatory fields</div>';
     return;
   }
 
   const { error } = await sb.from('da_owners').insert({
-    clinic_group_name, owner_name, category, phone, email: email || null, telegram_chat_id: telegram_chat_id || null, username, password, status: 'pending'
+    clinic_group_name, owner_name, broad_category, category, phone, email: email || null, telegram_chat_id: telegram_chat_id || null, username, password, status: 'pending'
   });
 
   if(error){
