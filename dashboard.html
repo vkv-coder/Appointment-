@@ -381,6 +381,15 @@ async function saveOwnerProfile(){
 }
 
 async function enterDash(){
+  const { data: freshOwner } = await sb.from('da_owners').select('*').eq('id', OWNER.id).maybeSingle();
+  if(!freshOwner){
+    alert('Your saved login is out of date. Please log in again.');
+    logout();
+    return;
+  }
+  OWNER = freshOwner;
+  localStorage.setItem('da_owner', JSON.stringify(OWNER));
+
   document.getElementById('gateCard').classList.add('hidden');
   document.getElementById('mainDash').classList.remove('hidden');
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
