@@ -447,24 +447,32 @@ function renderStaffBookingForm(patient){
   const clinicSel = document.getElementById('sBookClinic');
   const slotSel = document.getElementById('sBookSlot');
 
-  async function refreshClinics(){
-    if(!dateInp.value) return;
-    const dow = new Date(dateInp.value + 'T00:00:00').getDay();
-    const rows = getDoctorDaySchedule(doctorSel.value, dow).filter(r => r.session === 'both' || r.session === sessionSel.value);
-    clinicSel.innerHTML = rows.map(r => `<option value="${r.clinic_id}" data-ms="${r.morning_start}" data-me="${r.morning_end}" data-es="${r.evening_start}" data-ee="${r.evening_end}">${clinicName(r.clinic_id)}</option>`).join('') || '<option value="">Not working that day</option>';
-    await refreshSlots();
+  function populateLocationsForDoctor(){
+    const rows = schedule.filter(s => s.doctor_id === doctorSel.value);
+    const uniqueClinicIds = [...new Set(rows.map(r => r.clinic_id))];
+    clinicSel.innerHTML = uniqueClinicIds.length
+      ? uniqueClinicIds.map(cid => `<option value="${cid}">${clinicName(cid)}</option>`).join('')
+      : '<option value="">No location set up for this provider</option>';
   }
 
   async function refreshSlots(){
-    const opt = clinicSel.options[clinicSel.selectedIndex];
-    if(!opt || !opt.value){ slotSel.innerHTML = ''; return; }
-    const start = sessionSel.value === 'morning' ? opt.dataset.ms : opt.dataset.es;
-    const end = sessionSel.value === 'morning' ? opt.dataset.me : opt.dataset.ee;
+    const clinic_id = clinicSel.value;
+    if(!clinic_id || !dateInp.value){ slotSel.innerHTML = ''; return; }
+
+    const dow = new Date(dateInp.value + 'T00:00:00').getDay();
+    const row = schedule.find(s => s.doctor_id === doctorSel.value && s.clinic_id === clinic_id && s.day_of_week === dow && (s.session === 'both' || s.session === sessionSel.value));
+
+    if(!row){
+      slotSel.innerHTML = '<option value="">Not working this day/session at this location</option>';
+      return;
+    }
+    const start = sessionSel.value === 'morning' ? row.morning_start : row.evening_start;
+    const end = sessionSel.value === 'morning' ? row.morning_end : row.evening_end;
     const allSlots = genSlots(start, end);
     const { data: taken } = await sb.from('da_appointments')
       .select('confirmed_time')
       .eq('confirmed_doctor_id', doctorSel.value)
-      .eq('confirmed_clinic_id', clinicSel.value)
+      .eq('confirmed_clinic_id', clinic_id)
       .eq('confirmed_date', dateInp.value)
       .eq('status', 'confirmed');
     const takenTimes = (taken || []).map(t => t.confirmed_time ? t.confirmed_time.slice(0,5) : '');
@@ -472,10 +480,12 @@ function renderStaffBookingForm(patient){
     slotSel.innerHTML = free.length ? free.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No free slots</option>';
   }
 
-  doctorSel.addEventListener('change', refreshClinics);
-  dateInp.addEventListener('change', refreshClinics);
-  sessionSel.addEventListener('change', refreshClinics);
+  doctorSel.addEventListener('change', () => { populateLocationsForDoctor(); refreshSlots(); });
+  dateInp.addEventListener('change', refreshSlots);
+  sessionSel.addEventListener('change', refreshSlots);
   clinicSel.addEventListener('change', refreshSlots);
+
+  populateLocationsForDoctor();
 }
 
 async function staffConfirmBooking(patientId){
