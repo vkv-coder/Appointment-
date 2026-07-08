@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Approval</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--ink:#14213D;--teal:#0B5D5D;--bg:#FAF7F2;--mint:#DCEFE8;--line:#E4DED2;--text:#2B2B2B;--muted:#71767E;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:640px;margin:0 auto;padding:24px 18px 60px;}
+  h1{font-family:'Fraunces',serif;font-size:21px;color:var(--ink);margin:0 0 4px;}
+  .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+  input{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;}
+  .btn{padding:10px 16px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer;font-size:13.5px;}
+  .btn.reject{background:#B12E2E;}
+  .hidden{display:none !important;}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .detail{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:10px;}
+  .empty{text-align:center;color:var(--muted);font-size:13.5px;padding:20px 0;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:var(--mint);color:var(--teal);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card" id="gateCard">
+    <h1>Admin Approval</h1>
+    <div class="sub">Vijay only - enter master password</div>
+    <input type="password" id="gatePw" placeholder="Password">
+    <button class="btn" style="margin-top:12px;width:100%;" onclick="checkPw()">Enter</button>
+    <div id="gateMsg"></div>
+  </div>
+
+  <div class="hidden" id="mainAdmin">
+    <h1>Clinic Sign-up Requests</h1>
+    <div class="sub">Approve or reject new clinics</div>
+    <div id="list"></div>
+  </div>
+
+</div>
+
+<script>
+const SUPABASE_URL = "PASTE_SUPABASE_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_SUPABASE_ANON_KEY_HERE";
+const ADMIN_PASSWORD = "changeme123"; // change this - only Vijay should know it
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function checkPw(){
+  const pw = document.getElementById('gatePw').value;
+  if(pw === ADMIN_PASSWORD){
+    document.getElementById('gateCard').classList.add('hidden');
+    document.getElementById('mainAdmin').classList.remove('hidden');
+    loadOwners();
+  } else {
+    document.getElementById('gateMsg').innerHTML = '<div style="color:#B12E2E;font-size:13px;margin-top:8px;">Wrong password</div>';
+  }
+}
+
+async function loadOwners(){
+  const { data } = await sb.from('da_owners').select('*').order('created_at', { ascending: false });
+  const list = document.getElementById('list');
+  if(!data || data.length === 0){ list.innerHTML = '<div class="card empty">No sign-ups yet</div>'; return; }
+
+  list.innerHTML = data.map(o => `
+    <div class="card">
+      <div class="row"><b>${o.clinic_group_name}</b><span class="pill">${o.status.toUpperCase()}</span></div>
+      <div class="detail">
+        Owner: ${o.owner_name} · ${o.category || 'No category'}<br>
+        Phone: ${o.phone}${o.email ? ' · ' + o.email : ''}<br>
+        Username: ${o.username}
+      </div>
+      ${o.status === 'pending' ? `
+        <button class="btn" onclick="setStatus('${o.id}','approved')">Approve</button>
+        <button class="btn reject" style="margin-left:8px;" onclick="setStatus('${o.id}','rejected')">Reject</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+async function setStatus(id, status){
+  await sb.from('da_owners').update({ status }).eq('id', id);
+  loadOwners();
+}
+</script>
+</body>
+</html>

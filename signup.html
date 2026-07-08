@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up - Appointment System</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--ink:#14213D;--teal:#0B5D5D;--coral:#FF6F59;--bg:#FAF7F2;--mint:#DCEFE8;--line:#E4DED2;--text:#2B2B2B;--muted:#71767E;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:480px;margin:0 auto;padding:30px 18px 60px;}
+  h1{font-family:'Fraunces',serif;font-size:22px;color:var(--ink);margin:0 0 4px;}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;}
+  label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:14px 0 6px;}
+  label:first-child{margin-top:0;}
+  input{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;}
+  .req{color:var(--coral);}
+  .btn{width:100%;padding:14px;border:none;border-radius:12px;background:var(--teal);color:#fff;font-size:15.5px;font-weight:600;margin-top:20px;cursor:pointer;}
+  .msg{font-size:13px;padding:10px 12px;border-radius:10px;margin-top:12px;}
+  .msg.err{background:#FBDADA;color:#B12E2E;}
+  .msg.ok{background:var(--mint);color:var(--teal);}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Register Your Clinic</h1>
+  <div class="sub">Fill this once. Your account will be reviewed and approved before you can log in.</div>
+
+  <div class="card" id="formCard">
+    <label>Clinic / Practice Name <span class="req">*</span></label>
+    <input type="text" id="clinicName" placeholder="e.g. Doshi Dental Clinics">
+
+    <label>Owner / Doctor Name <span class="req">*</span></label>
+    <input type="text" id="ownerName" placeholder="Your full name">
+
+    <label>Category / Specialty <span class="req">*</span></label>
+    <input type="text" id="category" placeholder="e.g. Dental, Legal, CA, Physiotherapy">
+
+    <label>Mobile Number <span class="req">*</span></label>
+    <input type="tel" id="phone" maxlength="10" placeholder="10-digit mobile number">
+
+    <label>Email (optional)</label>
+    <input type="email" id="email" placeholder="you@email.com">
+
+    <label>Choose Username <span class="req">*</span></label>
+    <input type="text" id="username" placeholder="Username for login">
+
+    <label>Choose Password <span class="req">*</span></label>
+    <input type="password" id="password" placeholder="Password for login">
+
+    <button class="btn" onclick="submitSignup()">Submit for Approval</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card hidden" id="doneCard">
+    <div class="sub" style="font-size:14px;color:var(--ink);">
+      Thank you! Your request has been submitted. You will be notified once approved, then you can log in at the Dashboard page.
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "PASTE_SUPABASE_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_SUPABASE_ANON_KEY_HERE";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function submitSignup(){
+  const clinic_group_name = document.getElementById('clinicName').value.trim();
+  const owner_name = document.getElementById('ownerName').value.trim();
+  const category = document.getElementById('category').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  const msgEl = document.getElementById('msg');
+  if(!clinic_group_name || !owner_name || !category || !phone || !username || !password){
+    msgEl.innerHTML = '<div class="msg err">Please fill all mandatory fields</div>';
+    return;
+  }
+
+  const { error } = await sb.from('da_owners').insert({
+    clinic_group_name, owner_name, category, phone, email: email || null, username, password, status: 'pending'
+  });
+
+  if(error){
+    msgEl.innerHTML = '<div class="msg err">Could not submit. Username may already be taken.</div>';
+    return;
+  }
+
+  document.getElementById('formCard').classList.add('hidden');
+  document.getElementById('doneCard').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
