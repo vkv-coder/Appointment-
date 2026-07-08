@@ -136,6 +136,7 @@
 
       <div class="card">
         <div class="clinicHead">Weekly Schedule</div>
+        <div id="scheduleSetupHint"></div>
         <div id="scheduleListArea"></div>
         <label>Provider</label>
         <select id="schDoctor"></select>
@@ -538,6 +539,17 @@ function renderSettingsLists(){
 
   document.getElementById('schDoctor').innerHTML = doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
   document.getElementById('schClinic').innerHTML = clinics.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+  const schHint = document.getElementById('scheduleSetupHint');
+  if(schHint){
+    if(clinics.length === 0){
+      schHint.innerHTML = '<div class="msg err">Add a Location above first, then come back here.</div>';
+    } else if(doctors.length === 0){
+      schHint.innerHTML = '<div class="msg err">Add a Provider above first, then come back here.</div>';
+    } else {
+      schHint.innerHTML = '';
+    }
+  }
 }
 
 async function addClinic(){

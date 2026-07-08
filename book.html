@@ -117,6 +117,8 @@
       <label>Preferred Date <span class="req">*</span></label>
       <input type="date" id="bookDate" onchange="onDateChange()">
 
+      <div id="availabilityNote"></div>
+
       <!-- REQUEST MODE fields -->
       <div id="requestModeFields">
         <label>Preferred Time <span class="req">*</span></label>
@@ -289,12 +291,68 @@ function onDoctorChange(){
   document.getElementById('instantModeFields').classList.toggle('hidden', !isInstant);
   clearMsg('bookMsg');
   if(isInstant) loadInstantSlots();
+  updateAvailabilityNote();
+  restrictSessionOptions();
 }
 
 function onDateChange(){
   const doctorId = document.getElementById('bookDoctor').value;
   const doctor = doctorsCache.find(d => d.id === doctorId);
   if(doctor && doctor.booking_mode === 'instant') loadInstantSlots();
+  updateAvailabilityNote();
+  restrictSessionOptions();
+}
+
+// Shows a short summary of the selected doctor's working days/locations
+function updateAvailabilityNote(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const note = document.getElementById('availabilityNote');
+  if(!doctorId){ note.innerHTML = ''; return; }
+
+  const rows = scheduleCache.filter(s => s.doctor_id === doctorId);
+  if(rows.length === 0){ note.innerHTML = '<div class="msg err">No schedule set up for this provider yet.</div>'; return; }
+
+  const byDay = {};
+  rows.forEach(r => {
+    const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][r.day_of_week];
+    const clinic = clinicsCache.find(c => c.id === r.clinic_id);
+    if(!byDay[dayName]) byDay[dayName] = [];
+    byDay[dayName].push(`${r.session === 'both' ? 'Morning & Evening' : (r.session.charAt(0).toUpperCase()+r.session.slice(1))} at ${clinic ? clinic.name : ''}`);
+  });
+  const summary = Object.entries(byDay).map(([day, items]) => `${day}: ${items.join('; ')}`).join('<br>');
+  note.innerHTML = `<div class="msg" style="background:var(--mint);color:var(--teal);">${summary}</div>`;
+}
+
+// For Request mode: only allow choosing a session the doctor actually works, on the chosen date
+function restrictSessionOptions(){
+  const doctorId = document.getElementById('bookDoctor').value;
+  const date = document.getElementById('bookDate').value;
+  const sessionSel = document.getElementById('bookSession');
+  if(!doctorId || !date){
+    sessionSel.querySelectorAll('option').forEach(o => o.disabled = false);
+    return;
+  }
+  const dow = new Date(date + 'T00:00:00').getDay();
+  const rows = scheduleCache.filter(s => s.doctor_id === doctorId && s.day_of_week === dow);
+
+  if(rows.length === 0){
+    showMsg('bookMsg', 'This provider does not work on the selected date. Please choose another date.', 'err');
+    sessionSel.querySelectorAll('option').forEach(o => o.disabled = true);
+    return;
+  }
+  clearMsg('bookMsg');
+  const availableSessions = new Set();
+  rows.forEach(r => {
+    if(r.session === 'both'){ availableSessions.add('morning'); availableSessions.add('evening'); }
+    else availableSessions.add(r.session);
+  });
+  sessionSel.querySelectorAll('option').forEach(o => {
+    o.disabled = !availableSessions.has(o.value);
+  });
+  if(!availableSessions.has(sessionSel.value)){
+    const firstAvailable = [...availableSessions][0];
+    if(firstAvailable) sessionSel.value = firstAvailable;
+  }
 }
 
 async function loadInstantSlots(){
