@@ -69,7 +69,7 @@
         <h1 id="clinicHeading">Dashboard</h1>
         <div class="sub">Manage appointments & schedule</div>
       </div>
-      <div class="logout" onclick="logout()">Logout</div>
+      <div><a href="faq.html" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">How does this work?</a> &nbsp;|&nbsp; <span class="logout" onclick="logout()">Logout</span></div>
     </div>
 
     <div class="tabs">
@@ -102,8 +102,8 @@
     <div id="settingsTab" class="hidden">
       <div class="card">
         <div class="clinicHead">Your Account</div>
-        <label>Organisation Telegram Chat ID (optional)</label>
-        <input type="text" id="ownerTelegramId" placeholder="For free notifications on new requests">
+        <label>Organisation Telegram Chat ID(s) (optional)</label>
+        <input type="text" id="ownerTelegramId" placeholder="Separate multiple with commas, e.g. 111, 222">
         <button class="btn small" style="margin-top:10px;" onclick="saveOwnerTelegram()">Save</button>
         <div id="ownerTelegramMsg"></div>
       </div>
@@ -124,7 +124,7 @@
         <div id="doctorListArea"></div>
         <label>Add New Provider</label>
         <input type="text" id="newDoctorName" placeholder="Doctor name">
-        <input type="text" id="newDoctorTelegram" placeholder="Telegram Chat ID (optional)" style="margin-top:8px;">
+        <input type="text" id="newDoctorTelegram" placeholder="Telegram Chat ID(s) - comma separated (optional)" style="margin-top:8px;">
         <input type="email" id="newDoctorEmail" placeholder="Email (optional)" style="margin-top:8px;">
         <label>Booking Mode</label>
         <select id="newDoctorMode">
