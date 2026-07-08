@@ -179,6 +179,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let OWNER = null;
 let doctors = [], clinics = [], schedule = [];
+let staffCurrentPatient = null;
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 window.onload = () => {
@@ -423,6 +424,7 @@ async function staffCreatePatient(phone){
 }
 
 function renderStaffBookingForm(patient){
+  staffCurrentPatient = patient;
   const area = document.getElementById('staffPatientArea');
   const doctorOptions = doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
   area.innerHTML = `
@@ -506,7 +508,14 @@ async function staffConfirmBooking(patientId){
   });
 
   if(error){ msgEl.innerHTML = '<div class="msg err">Could not book. Try again.</div>'; return; }
-  msgEl.innerHTML = '<div class="msg">Appointment booked!</div>';
+
+  let waHtml = '';
+  const phone = (staffCurrentPatient && staffCurrentPatient.phone || '').replace(/\D/g,'');
+  if(phone){
+    const waMsg = encodeURIComponent(`Hi ${staffCurrentPatient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${date} at ${time}, at ${clinicName(clinic_id)}.`);
+    waHtml = `<button class="btn small" style="background:#25D366;margin-top:8px;" onclick="window.open('https://wa.me/91${phone}?text=${waMsg}','_blank')">Send WhatsApp Confirmation</button>`;
+  }
+  msgEl.innerHTML = '<div class="msg">Appointment booked!</div>' + waHtml;
 }
 
 // ---------------- DATE SCHEDULE TAB ----------------
