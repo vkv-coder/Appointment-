@@ -366,8 +366,9 @@ async function submitInstant(){
     booked_by: 'patient'
   });
 
-  if(error){ showMsg('bookMsg','Could not book. That slot may have just been taken - try another.','err'); return; }
+  if(error){ showMsg('bookMsg','Could not book. That slot may have just been taken - try another.','err'); alert('Could not book: ' + error.message); return; }
   showMsg('bookMsg','Appointment booked and confirmed!','ok');
+  alert('Appointment booked and confirmed!');
   loadAppointments();
 }
 
@@ -388,8 +389,9 @@ async function submitRequest(){
     booked_by: 'patient'
   });
 
-  if(error){ showMsg('bookMsg','Could not send request. Try again.','err'); return; }
+  if(error){ showMsg('bookMsg','Could not send request. Try again.','err'); alert('Could not send request: ' + error.message); return; }
   showMsg('bookMsg','Request sent! You will be notified once the provider confirms your slot.','ok');
+  alert('Request sent! You will be notified once the provider confirms your slot.');
   loadAppointments();
 }
 

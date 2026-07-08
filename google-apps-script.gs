@@ -9,7 +9,7 @@
 const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
 
-const TELEGRAM_BOT_TOKEN = "PASTE_TELEGRAM_BOT_TOKEN_HERE";  // from @BotFather
+const TELEGRAM_BOT_TOKEN = "8923280786:AAFLM1q1gjd8Gok9qakztDN9ZpUDAWLdfpY";
 const VIJAY_TELEGRAM_CHAT_ID = "8507770594";
 const SUPPORT_EMAIL = "vkvcoder.support@gmail.com";
 const ADMIN_APPROVAL_URL = "https://appointment.anyapps.in/admin-approval.html";
@@ -18,6 +18,12 @@ const DASHBOARD_URL = "https://appointment.anyapps.in/dashboard.html";
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
+
+    // Telegram sends updates with a "message" field - reply with their Chat ID
+    if (payload.message) {
+      handleTelegramMessage(payload.message);
+      return HtmlService.createHtmlOutput("ok");
+    }
 
     if (payload.table === "da_owners" && payload.type === "INSERT") {
       handleNewOwnerSignup(payload.record);
@@ -35,10 +41,19 @@ function doPost(e) {
       }
     }
 
-    return ContentService.createTextOutput("ok");
+    return HtmlService.createHtmlOutput("ok");
   } catch (err) {
-    return ContentService.createTextOutput("error: " + err.message);
+    return HtmlService.createHtmlOutput("error: " + err.message);
   }
+}
+
+// ---------- Telegram: reply with the sender's Chat ID so they can copy it ----------
+function handleTelegramMessage(message) {
+  const chatId = message.chat.id;
+  const text =
+    `Your Telegram Chat ID is:\n\n${chatId}\n\n` +
+    `Copy this and paste it into your Appointment app - either during sign-up or in your Dashboard - to receive free instant alerts.`;
+  sendTelegram(chatId, text);
 }
 
 // ---------- helper: fetch a single row from Supabase ----------
@@ -82,7 +97,7 @@ function handleNewRequest(record) {
     `Confirm here: ${DASHBOARD_URL}`;
 
   const doctorChatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
-  sendTelegram(doctorChatId, text);
+  sendTelegramMulti(doctorChatId, text);
 
   const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
   MailApp.sendEmail(emailTo, "New Appointment Request - " + doctorLabel, text);
@@ -114,18 +129,27 @@ function handleConfirmed(record, isInstant) {
       `Location: ${clinic ? clinic.name : "-"}\n` +
       `Date: ${record.confirmed_date}  Time: ${record.confirmed_time}`;
     const chatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
-    sendTelegram(chatId, providerText);
+    sendTelegramMulti(chatId, providerText);
     const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
     MailApp.sendEmail(emailTo, "Instant Booking - " + (doctor ? doctor.name : ""), providerText);
   }
 }
 
 function sendTelegram(chatId, text) {
-  if (!chatId || !TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN.indexOf("PASTE") === 0) return;
+  if (!chatId || !TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN.indexOf("PASTE") === 0) {
+    return;
+  }
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  UrlFetchApp.fetch(url, {
+  const response = UrlFetchApp.fetch(url, {
     method: "post",
-    payload: { chat_id: chatId, text: text },
+    contentType: "application/x-www-form-urlencoded",
+    payload: { chat_id: String(chatId), text: text },
     muteHttpExceptions: true
   });
+}
+
+// Sends to one or more chat IDs given as a comma-separated string (e.g. "111, 222")
+function sendTelegramMulti(chatIdsStr, text) {
+  if (!chatIdsStr) return;
+  String(chatIdsStr).split(",").map(s => s.trim()).filter(Boolean).forEach(id => sendTelegram(id, text));
 }

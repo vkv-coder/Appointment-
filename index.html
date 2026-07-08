@@ -10,18 +10,36 @@
   :root{--ink:#14213D;--teal:#0B5D5D;--coral:#FF6F59;--bg:#FAF7F2;--mint:#DCEFE8;--line:#E4DED2;--text:#2B2B2B;--muted:#71767E;}
   *{box-sizing:border-box;}
   body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-  .wrap{max-width:480px;margin:0 auto;padding:40px 20px 60px;}
-  .logo{display:flex;justify-content:center;margin-bottom:18px;}
-  h1{font-family:'Fraunces',serif;font-size:26px;color:var(--ink);text-align:center;margin:0 0 6px;}
-  .sub{font-size:13.5px;color:var(--muted);text-align:center;margin-bottom:34px;}
-  .tile{
-    background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:26px 22px;
-    margin-bottom:16px;cursor:pointer;transition:border-color .15s;
+  .banner{
+    background:linear-gradient(135deg, #0B5D5D 0%, #14213D 100%);
+    padding:48px 20px 56px;text-align:center;color:#fff;
+    border-radius:0 0 32px 32px;
   }
-  .tile:hover{border-color:var(--teal);}
-  .tile h2{font-family:'Fraunces',serif;font-size:18px;color:var(--ink);margin:0 0 4px;}
-  .tile p{font-size:13px;color:var(--muted);margin:0;}
-  .subactions{display:flex;gap:10px;margin-top:16px;}
+  .banner .icon-circle{
+    width:64px;height:64px;border-radius:20px;background:rgba(255,255,255,.15);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;
+  }
+  .banner h1{font-family:'Fraunces',serif;font-size:28px;margin:0 0 6px;}
+  .banner .sub{font-size:13.5px;opacity:.85;margin:0;}
+  .wrap{max-width:480px;margin:0 auto;padding:0 20px 50px;}
+  .tiles{margin-top:-30px;}
+  .tile{
+    background:#fff;border-radius:18px;padding:22px;
+    margin-bottom:16px;cursor:pointer;transition:transform .15s, box-shadow .15s;
+    display:flex;align-items:center;gap:16px;
+    box-shadow:0 6px 20px rgba(20,33,61,0.08);
+  }
+  .tile:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(20,33,61,0.13);}
+  .tile .icon{
+    width:52px;height:52px;border-radius:14px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .tile.user .icon{background:var(--mint);}
+  .tile.provider .icon{background:#FFE4DE;}
+  .tile-text h2{font-family:'Fraunces',serif;font-size:17px;color:var(--ink);margin:0 0 3px;}
+  .tile-text p{font-size:12.5px;color:var(--muted);margin:0;}
+  .chevron{margin-left:auto;color:var(--muted);flex:0 0 auto;}
+  .subactions{display:flex;gap:10px;margin-top:16px;padding:0 22px 22px;margin-top:-6px;}
   .subactions a{
     flex:1;text-align:center;padding:12px;border-radius:10px;font-weight:600;font-size:14px;
     text-decoration:none;
@@ -29,40 +47,65 @@
   .subactions a.login{background:var(--teal);color:#fff;}
   .subactions a.signup{background:var(--mint);color:var(--teal);}
   .hidden{display:none !important;}
-  footer{text-align:center;margin-top:30px;}
-  footer a{font-size:12px;color:var(--muted);}
+  .provider-card{
+    background:#fff;border-radius:18px;margin-bottom:16px;
+    box-shadow:0 6px 20px rgba(20,33,61,0.08);
+  }
+  footer{text-align:center;margin-top:20px;}
+  footer a{font-size:12px;color:var(--muted);display:block;margin-bottom:6px;text-decoration:underline;}
+  footer .support{font-size:12px;color:var(--muted);}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="logo">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="#0B5D5D" stroke-width="1.6"/><path d="M3 9h18" stroke="#0B5D5D" stroke-width="1.6"/><path d="M8 2v4M16 2v4" stroke="#0B5D5D" stroke-width="1.6" stroke-linecap="round"/><path d="M8.5 13.5l2 2 4-4" stroke="#FF6F59" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<div class="banner">
+  <div class="icon-circle">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="#fff" stroke-width="1.6"/><path d="M3 9h18" stroke="#fff" stroke-width="1.6"/><path d="M8 2v4M16 2v4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M8.5 13.5l2 2 4-4" stroke="#FF9F8F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </div>
   <h1>Appointments</h1>
   <div class="sub">Book with any doctor, consultant or professional</div>
+</div>
 
-  <div class="tile" onclick="window.location.href='directory.html'">
-    <h2>I am a User</h2>
-    <p>Browse and book an appointment with any listed provider</p>
-  </div>
+<div class="wrap">
+  <div class="tiles">
+    <div class="tile user" onclick="window.location.href='directory.html'">
+      <div class="icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#0B5D5D" stroke-width="1.7"/><path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6" stroke="#0B5D5D" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </div>
+      <div class="tile-text">
+        <h2>I am a User</h2>
+        <p>Browse and book with any listed provider</p>
+      </div>
+      <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
 
-  <div class="tile" id="providerTile" onclick="toggleProvider()">
-    <h2>I am a Service Provider</h2>
-    <p>Manage your appointments, schedule and clients</p>
-    <div class="subactions hidden" id="providerActions">
-      <a class="login" href="dashboard.html">Login</a>
-      <a class="signup" href="signup.html">Sign Up</a>
+    <div class="provider-card">
+      <div class="tile provider" id="providerTile" onclick="toggleProvider()" style="box-shadow:none;margin-bottom:0;">
+        <div class="icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="2" stroke="#FF6F59" stroke-width="1.7"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" stroke="#FF6F59" stroke-width="1.7"/></svg>
+        </div>
+        <div class="tile-text">
+          <h2>I am a Service Provider</h2>
+          <p>Manage your appointments, schedule and clients</p>
+        </div>
+        <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="subactions hidden" id="providerActions">
+        <a class="login" href="dashboard.html">Login</a>
+        <a class="signup" href="signup.html">Sign Up</a>
+      </div>
     </div>
   </div>
 
-  <footer><a href="privacy.html">Privacy Policy</a></footer>
+  <footer>
+    <a href="privacy.html">Privacy Policy</a>
+    <div class="support">Support: <a href="mailto:vkvcoder.support@gmail.com" style="display:inline;">vkvcoder.support@gmail.com</a></div>
+  </footer>
 </div>
 
 <script>
 function toggleProvider(){
   document.getElementById('providerActions').classList.toggle('hidden');
 }
-// prevent clicks on the login/signup links from re-triggering the tile toggle
 document.getElementById('providerActions').addEventListener('click', e => e.stopPropagation());
 </script>
 </body>
