@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinic Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{--ink:#14213D;--teal:#0B5D5D;--coral:#FF6F59;--bg:#FAF7F2;--mint:#DCEFE8;--line:#E4DED2;--text:#2B2B2B;--muted:#71767E;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:680px;margin:0 auto;padding:20px 18px 60px;}
+  h1{font-family:'Fraunces',serif;font-size:21px;color:var(--ink);margin:0 0 4px;}
+  .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+  input,select{width:100%;padding:11px;border:1.5px solid var(--line);border-radius:10px;font-size:14.5px;margin-top:6px;}
+  .btn{padding:11px 16px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer;font-size:13.5px;}
+  .btn.small{padding:8px 12px;font-size:12.5px;}
+  .btn.reject{background:#B12E2E;}
+  .btn.wide{width:100%;margin-top:12px;}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px;}
+  .tab{flex:0 0 auto;text-align:center;padding:9px 12px;border-radius:10px;background:#fff;border:1.5px solid var(--line);cursor:pointer;font-weight:600;font-size:12.5px;color:var(--muted);white-space:nowrap;}
+  .tab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .hidden{display:none !important;}
+  .req{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;}
+  .req .top{display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;}
+  .detail{font-size:13.5px;color:var(--muted);margin-bottom:8px;line-height:1.5;}
+  .row2{display:flex;gap:8px;}
+  .row2>div{flex:1;}
+  label{font-size:12.5px;font-weight:600;color:var(--ink);display:block;margin-top:8px;}
+  label:first-child{margin-top:0;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:var(--mint);color:var(--teal);}
+  .empty{font-size:13.5px;color:var(--muted);text-align:center;padding:20px 0;}
+  .apptRow{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .apptRow:last-child{border-bottom:none;}
+  .clinicHead{font-weight:700;color:var(--ink);margin:14px 0 6px;font-size:14px;}
+  .msg{font-size:13px;padding:8px 10px;border-radius:8px;margin-top:8px;background:var(--mint);color:var(--teal);}
+  .msg.err{background:#FBDADA;color:#B12E2E;}
+  .listItem{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .listItem:last-child{border-bottom:none;}
+  .daybtns{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;}
+  .daybtn{padding:6px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:12px;cursor:pointer;background:#fff;}
+  .daybtn.on{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .logout{font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;}
+  .toprow{display:flex;justify-content:space-between;align-items:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div class="card" id="gateCard">
+    <h1>Clinic Dashboard</h1>
+    <div class="sub">Log in with your clinic account</div>
+    <label>Username</label>
+    <input type="text" id="loginUser">
+    <label>Password</label>
+    <input type="password" id="loginPass">
+    <button class="btn wide" onclick="doLogin()">Log In</button>
+    <div id="gateMsg"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="hidden" id="mainDash">
+    <div class="toprow">
+      <div>
+        <h1 id="clinicHeading">Dashboard</h1>
+        <div class="sub">Manage appointments & schedule</div>
+      </div>
+      <div class="logout" onclick="logout()">Logout</div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="pending" onclick="switchTab('pending')">Pending</div>
+      <div class="tab" data-tab="addappt" onclick="switchTab('addappt')">Add Appointment</div>
+      <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">Date Schedule</div>
+      <div class="tab" data-tab="settings" onclick="switchTab('settings')">Clinics & Doctors</div>
+      <div class="tab" data-tab="export" onclick="switchTab('export')">Export Excel</div>
+    </div>
+
+    <div id="pendingTab"><div id="pendingList"></div></div>
+
+    <div id="addapptTab" class="hidden">
+      <div class="card">
+        <label>Patient Mobile Number</label>
+        <input type="tel" id="staffPhone" maxlength="10" placeholder="10-digit mobile number">
+        <button class="btn small" style="margin-top:8px;" onclick="staffSearchPatient()">Search</button>
+        <div id="staffPatientArea"></div>
+      </div>
+    </div>
+
+    <div id="scheduleTab" class="hidden">
+      <div class="card">
+        <label>Select Date</label>
+        <input type="date" id="scheduleDate" onchange="loadSchedule()">
+      </div>
+      <div id="scheduleView"></div>
+    </div>
+
+    <div id="settingsTab" class="hidden">
+      <div class="card">
+        <div class="clinicHead">Your Clinics</div>
+        <div id="clinicListArea"></div>
+        <label>Add New Clinic</label>
+        <input type="text" id="newClinicName" placeholder="Clinic name">
+        <input type="text" id="newClinicAddress" placeholder="Address" style="margin-top:8px;">
+        <label>Weekly Off Days</label>
+        <div class="daybtns" id="newClinicOffDays"></div>
+        <button class="btn wide" onclick="addClinic()">Add Clinic</button>
+      </div>
+
+      <div class="card">
+        <div class="clinicHead">Your Doctors</div>
+        <div id="doctorListArea"></div>
+        <label>Add New Doctor</label>
+        <input type="text" id="newDoctorName" placeholder="Doctor name">
+        <input type="text" id="newDoctorTelegram" placeholder="Telegram Chat ID (optional)" style="margin-top:8px;">
+        <input type="email" id="newDoctorEmail" placeholder="Email (optional)" style="margin-top:8px;">
+        <button class="btn wide" onclick="addDoctor()">Add Doctor</button>
+      </div>
+
+      <div class="card">
+        <div class="clinicHead">Weekly Schedule</div>
+        <div id="scheduleListArea"></div>
+        <label>Doctor</label>
+        <select id="schDoctor"></select>
+        <label>Clinic</label>
+        <select id="schClinic"></select>
+        <label>Day of Week</label>
+        <select id="schDay">
+          <option value="0">Sunday</option><option value="1" selected>Monday</option>
+          <option value="2">Tuesday</option><option value="3">Wednesday</option>
+          <option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+        <label>Session</label>
+        <select id="schSession">
+          <option value="morning">Morning</option><option value="evening">Evening</option><option value="both">Both</option>
+        </select>
+        <button class="btn wide" onclick="addSchedule()">Add Schedule Row</button>
+      </div>
+    </div>
+
+    <div id="exportTab" class="hidden">
+      <div class="card">
+        <label>From Date</label>
+        <input type="date" id="exportFrom">
+        <label>To Date</label>
+        <input type="date" id="exportTo">
+        <button class="btn wide" onclick="exportExcel()">Download Excel</button>
+        <div id="exportMsg"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============= CONFIG - fill these in =============
+const SUPABASE_URL = "PASTE_SUPABASE_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_SUPABASE_ANON_KEY_HERE";
+// ====================================================
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let OWNER = null;
+let doctors = [], clinics = [], schedule = [];
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+window.onload = () => {
+  const savedOwner = localStorage.getItem('da_owner');
+  if(savedOwner){
+    OWNER = JSON.parse(savedOwner);
+    enterDash();
+  }
+  const offDaysDiv = document.getElementById('newClinicOffDays');
+  DAY_NAMES.forEach((d,i)=>{
+    const b = document.createElement('div');
+    b.className = 'daybtn';
+    b.textContent = d;
+    b.dataset.day = i;
+    b.onclick = () => b.classList.toggle('on');
+    offDaysDiv.appendChild(b);
+  });
+};
+
+async function doLogin(){
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const { data, error } = await sb.from('da_owners').select('*').eq('username', username).eq('password', password).maybeSingle();
+  const msgEl = document.getElementById('gateMsg');
+  if(error || !data){ msgEl.innerHTML = '<div class="msg err">Invalid username or password</div>'; return; }
+  if(data.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
+  OWNER = data;
+  localStorage.setItem('da_owner', JSON.stringify(data));
+  enterDash();
+}
+
+function logout(){
+  localStorage.removeItem('da_owner');
+  OWNER = null;
+  document.getElementById('mainDash').classList.add('hidden');
+  document.getElementById('gateCard').classList.remove('hidden');
+}
+
+async function enterDash(){
+  document.getElementById('gateCard').classList.add('hidden');
+  document.getElementById('mainDash').classList.remove('hidden');
+  document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
+  await refreshData();
+  document.getElementById('scheduleDate').value = new Date().toISOString().split('T')[0];
+  loadPending();
+}
+
+async function refreshData(){
+  const d = await sb.from('da_doctors').select('*').eq('owner_id', OWNER.id);
+  doctors = d.data || [];
+  const c = await sb.from('da_clinics').select('*').eq('owner_id', OWNER.id);
+  clinics = c.data || [];
+  const s = await sb.from('da_schedule').select('*').eq('owner_id', OWNER.id);
+  schedule = s.data || [];
+  renderSettingsLists();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab === tab));
+  ['pending','addappt','schedule','settings','export'].forEach(t=>{
+    document.getElementById(t+'Tab').classList.toggle('hidden', t !== tab);
+  });
+  if(tab === 'schedule') loadSchedule();
+  if(tab === 'settings') renderSettingsLists();
+}
+
+function docName(id){ const d = doctors.find(x=>x.id===id); return d ? d.name : ''; }
+function clinicName(id){ const c = clinics.find(x=>x.id===id); return c ? c.name : ''; }
+
+function getDoctorDaySchedule(doctorId, dayOfWeek){
+  return schedule.filter(s => s.doctor_id === doctorId && s.day_of_week === dayOfWeek);
+}
+
+function genSlots(startStr, endStr){
+  const slots = [];
+  let [h,m] = startStr.split(':').map(Number);
+  const [eh,em] = endStr.split(':').map(Number);
+  while(h < eh || (h === eh && m < em)){
+    slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+    m += 30;
+    if(m >= 60){ m -= 60; h += 1; }
+  }
+  return slots;
+}
+
+// ---------------- PENDING TAB ----------------
+async function loadPending(){
+  const { data, error } = await sb.from('da_appointments')
+    .select('*, da_patients(name, phone, age, sex), pref_doctor:da_doctors!da_appointments_doctor_id_fkey(name)')
+    .eq('owner_id', OWNER.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  const list = document.getElementById('pendingList');
+  if(error || !data || data.length === 0){ list.innerHTML = '<div class="empty">No pending requests</div>'; return; }
+
+  list.innerHTML = data.map(a => {
+    const dow = new Date(a.preferred_date + 'T00:00:00').getDay();
+    const prefDoctorLabel = a.doctor_id ? (a.pref_doctor ? a.pref_doctor.name : '') : 'Any Doctor';
+    const candidateDoctors = doctors.filter(doc => {
+      if(a.doctor_id && doc.id !== a.doctor_id) return false;
+      const rows = getDoctorDaySchedule(doc.id, dow);
+      return rows.some(r => r.session === 'both' || r.session === a.preferred_session);
+    });
+    const doctorOptions = candidateDoctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+
+    return `<div class="req" data-id="${a.id}" data-date="${a.preferred_date}" data-session="${a.preferred_session}">
+      <div class="top"><b>${a.da_patients.name}</b><span class="pill">${prefDoctorLabel}</span></div>
+      <div class="detail">
+        ${a.da_patients.age} yrs, ${a.da_patients.sex} · ${a.da_patients.phone}<br>
+        Wants: ${a.preferred_date} (${DAY_NAMES[dow]}) · ${a.preferred_session}
+      </div>
+      <label>Assign Doctor</label>
+      <select class="assignDoctor">${doctorOptions || '<option value="">No doctor available that day</option>'}</select>
+      <label>Clinic</label>
+      <select class="assignClinic"></select>
+      <label>Time Slot</label>
+      <select class="assignSlot"></select>
+      <button class="btn small" style="margin-top:10px;" onclick="confirmAppt('${a.id}', this)">Confirm</button>
+      <button class="btn small reject" style="margin-top:10px;margin-left:8px;" onclick="rejectAppt('${a.id}')">Reject</button>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('#pendingList .req').forEach(card => wireSlotDropdowns(card));
+}
+
+function wireSlotDropdowns(card){
+  const doctorSel = card.querySelector('.assignDoctor');
+  const clinicSel = card.querySelector('.assignClinic');
+  const slotSel = card.querySelector('.assignSlot');
+  const date = card.dataset.date;
+  const session = card.dataset.session;
+  const dow = new Date(date + 'T00:00:00').getDay();
+
+  async function refreshClinics(){
+    const doctorId = doctorSel.value;
+    const rows = getDoctorDaySchedule(doctorId, dow).filter(r => r.session === 'both' || r.session === session);
+    clinicSel.innerHTML = rows.map(r => `<option value="${r.clinic_id}" data-ms="${r.morning_start}" data-me="${r.morning_end}" data-es="${r.evening_start}" data-ee="${r.evening_end}">${clinicName(r.clinic_id)}</option>`).join('');
+    await refreshSlots();
+  }
+
+  async function refreshSlots(){
+    const opt = clinicSel.options[clinicSel.selectedIndex];
+    if(!opt){ slotSel.innerHTML = ''; return; }
+    const start = session === 'morning' ? opt.dataset.ms : opt.dataset.es;
+    const end = session === 'morning' ? opt.dataset.me : opt.dataset.ee;
+    const allSlots = genSlots(start, end);
+
+    const { data: taken } = await sb.from('da_appointments')
+      .select('confirmed_time')
+      .eq('confirmed_doctor_id', doctorSel.value)
+      .eq('confirmed_clinic_id', clinicSel.value)
+      .eq('confirmed_date', date)
+      .eq('status', 'confirmed');
+    const takenTimes = (taken || []).map(t => t.confirmed_time ? t.confirmed_time.slice(0,5) : '');
+    const free = allSlots.filter(s => !takenTimes.includes(s));
+    slotSel.innerHTML = free.length ? free.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No free slots</option>';
+  }
+
+  doctorSel.addEventListener('change', refreshClinics);
+  clinicSel.addEventListener('change', refreshSlots);
+  refreshClinics();
+}
+
+async function confirmAppt(id, btn){
+  const card = btn.closest('.req');
+  const doctor_id = card.querySelector('.assignDoctor').value;
+  const clinic_id = card.querySelector('.assignClinic').value;
+  const time = card.querySelector('.assignSlot').value;
+  const date = card.dataset.date;
+  if(!doctor_id || !clinic_id || !time){ alert('Please select doctor, clinic and time slot'); return; }
+
+  const { error } = await sb.from('da_appointments').update({
+    status: 'confirmed', confirmed_doctor_id: doctor_id, confirmed_clinic_id: clinic_id,
+    confirmed_date: date, confirmed_time: time, updated_at: new Date().toISOString()
+  }).eq('id', id);
+
+  if(error){ alert('Could not confirm. Try again.'); return; }
+  loadPending();
+}
+
+async function rejectAppt(id){
+  if(!confirm('Reject this request?')) return;
+  await sb.from('da_appointments').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id);
+  loadPending();
+}
+
+// ---------------- ADD APPOINTMENT (staff booking) TAB ----------------
+async function staffSearchPatient(){
+  const phone = document.getElementById('staffPhone').value.trim();
+  const area = document.getElementById('staffPatientArea');
+  if(phone.length < 10){ area.innerHTML = '<div class="msg err">Enter a valid 10-digit number</div>'; return; }
+
+  const { data } = await sb.from('da_patients').select('*').eq('owner_id', OWNER.id).eq('phone', phone).maybeSingle();
+
+  if(data){
+    renderStaffBookingForm(data);
+  } else {
+    area.innerHTML = `
+      <div class="msg">New patient - please fill details</div>
+      <label>Full Name</label><input type="text" id="sNewName">
+      <div class="row2">
+        <div><label>Sex</label><select id="sNewSex"><option>Male</option><option>Female</option><option>Other</option></select></div>
+        <div><label>Age</label><input type="number" id="sNewAge"></div>
+      </div>
+      <label>Email (optional)</label><input type="email" id="sNewEmail">
+      <button class="btn small" style="margin-top:10px;" onclick="staffCreatePatient('${phone}')">Save Patient & Continue</button>
+    `;
+  }
+}
+
+async function staffCreatePatient(phone){
+  const name = document.getElementById('sNewName').value.trim();
+  const sex = document.getElementById('sNewSex').value;
+  const age = document.getElementById('sNewAge').value;
+  const email = document.getElementById('sNewEmail').value.trim();
+  if(!name || !sex || !age){ alert('Name, sex and age are required'); return; }
+
+  const { data, error } = await sb.from('da_patients').insert({
+    owner_id: OWNER.id, name, sex, age: parseInt(age), phone, email: email || null
+  }).select().single();
+  if(error){ alert('Could not save patient'); return; }
+  renderStaffBookingForm(data);
+}
+
+function renderStaffBookingForm(patient){
+  const area = document.getElementById('staffPatientArea');
+  const doctorOptions = doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  area.innerHTML = `
+    <div class="msg">Booking for: <b>${patient.name}</b> (${patient.phone})</div>
+    <label>Doctor</label>
+    <select id="sBookDoctor">${doctorOptions}</select>
+    <label>Date</label>
+    <input type="date" id="sBookDate" min="${new Date().toISOString().split('T')[0]}">
+    <label>Session</label>
+    <select id="sBookSession"><option value="morning">Morning</option><option value="evening">Evening</option></select>
+    <label>Clinic</label>
+    <select id="sBookClinic"></select>
+    <label>Time Slot</label>
+    <select id="sBookSlot"></select>
+    <button class="btn wide" onclick="staffConfirmBooking('${patient.id}')">Confirm Appointment</button>
+    <div id="sBookMsg"></div>
+  `;
+
+  const doctorSel = document.getElementById('sBookDoctor');
+  const dateInp = document.getElementById('sBookDate');
+  const sessionSel = document.getElementById('sBookSession');
+  const clinicSel = document.getElementById('sBookClinic');
+  const slotSel = document.getElementById('sBookSlot');
+
+  async function refreshClinics(){
+    if(!dateInp.value) return;
+    const dow = new Date(dateInp.value + 'T00:00:00').getDay();
+    const rows = getDoctorDaySchedule(doctorSel.value, dow).filter(r => r.session === 'both' || r.session === sessionSel.value);
+    clinicSel.innerHTML = rows.map(r => `<option value="${r.clinic_id}" data-ms="${r.morning_start}" data-me="${r.morning_end}" data-es="${r.evening_start}" data-ee="${r.evening_end}">${clinicName(r.clinic_id)}</option>`).join('') || '<option value="">Not working that day</option>';
+    await refreshSlots();
+  }
+
+  async function refreshSlots(){
+    const opt = clinicSel.options[clinicSel.selectedIndex];
+    if(!opt || !opt.value){ slotSel.innerHTML = ''; return; }
+    const start = sessionSel.value === 'morning' ? opt.dataset.ms : opt.dataset.es;
+    const end = sessionSel.value === 'morning' ? opt.dataset.me : opt.dataset.ee;
+    const allSlots = genSlots(start, end);
+    const { data: taken } = await sb.from('da_appointments')
+      .select('confirmed_time')
+      .eq('confirmed_doctor_id', doctorSel.value)
+      .eq('confirmed_clinic_id', clinicSel.value)
+      .eq('confirmed_date', dateInp.value)
+      .eq('status', 'confirmed');
+    const takenTimes = (taken || []).map(t => t.confirmed_time ? t.confirmed_time.slice(0,5) : '');
+    const free = allSlots.filter(s => !takenTimes.includes(s));
+    slotSel.innerHTML = free.length ? free.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No free slots</option>';
+  }
+
+  doctorSel.addEventListener('change', refreshClinics);
+  dateInp.addEventListener('change', refreshClinics);
+  sessionSel.addEventListener('change', refreshClinics);
+  clinicSel.addEventListener('change', refreshSlots);
+}
+
+async function staffConfirmBooking(patientId){
+  const doctor_id = document.getElementById('sBookDoctor').value;
+  const date = document.getElementById('sBookDate').value;
+  const session = document.getElementById('sBookSession').value;
+  const clinic_id = document.getElementById('sBookClinic').value;
+  const time = document.getElementById('sBookSlot').value;
+  const msgEl = document.getElementById('sBookMsg');
+
+  if(!doctor_id || !date || !clinic_id || !time){ msgEl.innerHTML = '<div class="msg err">Please fill all fields</div>'; return; }
+
+  const { error } = await sb.from('da_appointments').insert({
+    owner_id: OWNER.id, patient_id: patientId, doctor_id,
+    preferred_session: session, preferred_date: date,
+    status: 'confirmed', confirmed_doctor_id: doctor_id, confirmed_clinic_id: clinic_id,
+    confirmed_date: date, confirmed_time: time, booked_by: 'staff'
+  });
+
+  if(error){ msgEl.innerHTML = '<div class="msg err">Could not book. Try again.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg">Appointment booked!</div>';
+}
+
+// ---------------- DATE SCHEDULE TAB ----------------
+async function loadSchedule(){
+  const date = document.getElementById('scheduleDate').value;
+  if(!date) return;
+  const { data } = await sb.from('da_appointments')
+    .select('*, da_patients(name, phone), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name)')
+    .eq('owner_id', OWNER.id)
+    .eq('confirmed_date', date)
+    .eq('status', 'confirmed')
+    .order('confirmed_time');
+
+  const view = document.getElementById('scheduleView');
+  if(!data || data.length === 0){ view.innerHTML = '<div class="card"><div class="empty">No confirmed appointments this date</div></div>'; return; }
+
+  let html = '<div class="card">';
+  clinics.forEach(c => {
+    const rows = data.filter(a => a.confirmed_clinic_id === c.id);
+    if(rows.length === 0) return;
+    html += `<div class="clinicHead">${c.name}</div>`;
+    rows.forEach(a => {
+      html += `<div class="apptRow"><span>${a.confirmed_time.slice(0,5)} — ${a.da_patients.name}</span><span>${a.confirmed_doctor ? a.confirmed_doctor.name : ''}</span></div>`;
+    });
+  });
+  html += '</div>';
+  view.innerHTML = html;
+}
+
+// ---------------- SETTINGS TAB: clinics, doctors, schedule ----------------
+function renderSettingsLists(){
+  const clinicArea = document.getElementById('clinicListArea');
+  clinicArea.innerHTML = clinics.length ? clinics.map(c => `
+    <div class="listItem"><span>${c.name}${c.off_days && c.off_days.length ? ' (off: ' + c.off_days.map(d=>DAY_NAMES[d]).join(',') + ')' : ''}</span>
+    <button class="btn small reject" onclick="deleteClinic('${c.id}')">Delete</button></div>
+  `).join('') : '<div class="empty">No clinics added yet</div>';
+
+  const doctorArea = document.getElementById('doctorListArea');
+  doctorArea.innerHTML = doctors.length ? doctors.map(d => `
+    <div class="listItem"><span>${d.name}</span>
+    <button class="btn small reject" onclick="deleteDoctor('${d.id}')">Delete</button></div>
+  `).join('') : '<div class="empty">No doctors added yet</div>';
+
+  const schArea = document.getElementById('scheduleListArea');
+  schArea.innerHTML = schedule.length ? schedule.map(s => `
+    <div class="listItem"><span>${docName(s.doctor_id)} - ${clinicName(s.clinic_id)} - ${DAY_NAMES[s.day_of_week]} (${s.session})</span>
+    <button class="btn small reject" onclick="deleteSchedule('${s.id}')">Delete</button></div>
+  `).join('') : '<div class="empty">No schedule rows yet</div>';
+
+  document.getElementById('schDoctor').innerHTML = doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  document.getElementById('schClinic').innerHTML = clinics.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+async function addClinic(){
+  const name = document.getElementById('newClinicName').value.trim();
+  const address = document.getElementById('newClinicAddress').value.trim();
+  const offDays = Array.from(document.querySelectorAll('#newClinicOffDays .daybtn.on')).map(b=>parseInt(b.dataset.day));
+  if(!name){ alert('Enter clinic name'); return; }
+  await sb.from('da_clinics').insert({ owner_id: OWNER.id, name, address, off_days: offDays });
+  document.getElementById('newClinicName').value = '';
+  document.getElementById('newClinicAddress').value = '';
+  document.querySelectorAll('#newClinicOffDays .daybtn').forEach(b=>b.classList.remove('on'));
+  await refreshData();
+}
+
+async function deleteClinic(id){
+  if(!confirm('Delete this clinic? Related schedule rows will also be removed.')) return;
+  await sb.from('da_clinics').delete().eq('id', id);
+  await refreshData();
+}
+
+async function addDoctor(){
+  const name = document.getElementById('newDoctorName').value.trim();
+  const telegram_chat_id = document.getElementById('newDoctorTelegram').value.trim();
+  const email = document.getElementById('newDoctorEmail').value.trim();
+  if(!name){ alert('Enter doctor name'); return; }
+  await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null });
+  document.getElementById('newDoctorName').value = '';
+  document.getElementById('newDoctorTelegram').value = '';
+  document.getElementById('newDoctorEmail').value = '';
+  await refreshData();
+}
+
+async function deleteDoctor(id){
+  if(!confirm('Delete this doctor? Related schedule rows will also be removed.')) return;
+  await sb.from('da_doctors').delete().eq('id', id);
+  await refreshData();
+}
+
+async function addSchedule(){
+  const doctor_id = document.getElementById('schDoctor').value;
+  const clinic_id = document.getElementById('schClinic').value;
+  const day_of_week = parseInt(document.getElementById('schDay').value);
+  const session = document.getElementById('schSession').value;
+  if(!doctor_id || !clinic_id){ alert('Add at least one clinic and doctor first'); return; }
+  await sb.from('da_schedule').insert({ owner_id: OWNER.id, doctor_id, clinic_id, day_of_week, session });
+  await refreshData();
+}
+
+async function deleteSchedule(id){
+  await sb.from('da_schedule').delete().eq('id', id);
+  await refreshData();
+}
+
+// ---------------- EXPORT EXCEL TAB ----------------
+async function exportExcel(){
+  const from = document.getElementById('exportFrom').value;
+  const to = document.getElementById('exportTo').value;
+  const msgEl = document.getElementById('exportMsg');
+  if(!from || !to){ msgEl.innerHTML = '<div class="msg err">Select both dates</div>'; return; }
+
+  const { data, error } = await sb.from('da_appointments')
+    .select('*, da_patients(name, phone, age, sex), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name), confirmed_clinic:da_clinics(name)')
+    .eq('owner_id', OWNER.id)
+    .eq('status', 'confirmed')
+    .gte('confirmed_date', from)
+    .lte('confirmed_date', to)
+    .order('confirmed_date');
+
+  if(error || !data || data.length === 0){ msgEl.innerHTML = '<div class="msg err">No confirmed appointments in this range</div>'; return; }
+
+  const rows = data.map(a => ({
+    Date: a.confirmed_date,
+    Time: a.confirmed_time,
+    Patient: a.da_patients.name,
+    Phone: a.da_patients.phone,
+    Age: a.da_patients.age,
+    Sex: a.da_patients.sex,
+    Doctor: a.confirmed_doctor ? a.confirmed_doctor.name : '',
+    Clinic: a.confirmed_clinic ? a.confirmed_clinic.name : '',
+    'Booked By': a.booked_by
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Appointments');
+  XLSX.writeFile(wb, `Appointments_${from}_to_${to}.xlsx`);
+  msgEl.innerHTML = '<div class="msg">Downloaded</div>';
+}
+</script>
+</body>
+</html>
