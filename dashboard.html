@@ -755,11 +755,13 @@ async function addClinic(){
   const address = document.getElementById('newClinicAddress').value.trim();
   const offDays = Array.from(document.querySelectorAll('#newClinicOffDays .daybtn.on')).map(b=>parseInt(b.dataset.day));
   if(!name){ alert('Enter clinic name'); return; }
-  await sb.from('da_clinics').insert({ owner_id: OWNER.id, name, address, off_days: offDays });
+  const { error } = await sb.from('da_clinics').insert({ owner_id: OWNER.id, name, address, off_days: offDays });
+  if(error){ alert('Could not add location: ' + error.message); return; }
   document.getElementById('newClinicName').value = '';
   document.getElementById('newClinicAddress').value = '';
   document.querySelectorAll('#newClinicOffDays .daybtn').forEach(b=>b.classList.remove('on'));
   await refreshData();
+  alert('Location added: ' + name);
 }
 
 async function deleteClinic(id){
@@ -774,11 +776,13 @@ async function addDoctor(){
   const email = document.getElementById('newDoctorEmail').value.trim();
   const booking_mode = document.getElementById('newDoctorMode').value;
   if(!name){ alert('Enter doctor name'); return; }
-  await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null, booking_mode });
+  const { error } = await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null, booking_mode });
+  if(error){ alert('Could not add provider: ' + error.message); return; }
   document.getElementById('newDoctorName').value = '';
   document.getElementById('newDoctorTelegram').value = '';
   document.getElementById('newDoctorEmail').value = '';
   await refreshData();
+  alert('Provider added: ' + name);
 }
 
 async function deleteDoctor(id){
@@ -815,8 +819,10 @@ async function addSchedule(){
     row.evening_start = start;
     row.evening_end = end;
   }
-  await sb.from('da_schedule').insert(row);
+  const { error } = await sb.from('da_schedule').insert(row);
+  if(error){ alert('Could not add schedule row: ' + error.message); return; }
   await refreshData();
+  alert('Schedule row added');
 }
 
 async function deleteSchedule(id){
