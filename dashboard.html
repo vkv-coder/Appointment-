@@ -360,12 +360,21 @@ async function confirmAppt(id, btn){
   const date = card.dataset.date;
   if(!doctor_id || !clinic_id || !time){ alert('Please select doctor, clinic and time slot'); return; }
 
-  const { error } = await sb.from('da_appointments').update({
+  const { data: apptData, error } = await sb.from('da_appointments').update({
     status: 'confirmed', confirmed_doctor_id: doctor_id, confirmed_clinic_id: clinic_id,
     confirmed_date: date, confirmed_time: time, updated_at: new Date().toISOString()
-  }).eq('id', id);
+  }).eq('id', id).select('*, da_patients(name, phone)').single();
 
   if(error){ alert('Could not confirm. Try again.'); return; }
+
+  const patient = apptData.da_patients;
+  const phone = (patient && patient.phone || '').replace(/\D/g,'');
+  if(phone){
+    const msg = encodeURIComponent(`Hi ${patient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${date} at ${time}, at ${clinicName(clinic_id)}.`);
+    if(confirm('Confirmed! Send WhatsApp message to patient now?')){
+      window.open(`https://wa.me/91${phone}?text=${msg}`, '_blank');
+    }
+  }
   loadPending();
 }
 
@@ -495,7 +504,7 @@ async function loadSchedule(){
   const date = document.getElementById('scheduleDate').value;
   if(!date) return;
   const { data } = await sb.from('da_appointments')
-    .select('*, da_patients(name, phone), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name)')
+    .select('*, da_patients(name, phone), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name), confirmed_clinic:da_clinics(name, address)')
     .eq('owner_id', OWNER.id)
     .eq('confirmed_date', date)
     .eq('status', 'confirmed')
@@ -510,7 +519,16 @@ async function loadSchedule(){
     if(rows.length === 0) return;
     html += `<div class="clinicHead">${c.name}</div>`;
     rows.forEach(a => {
-      html += `<div class="apptRow"><span>${a.confirmed_time.slice(0,5)} — ${a.da_patients.name}</span><span>${a.confirmed_doctor ? a.confirmed_doctor.name : ''}</span></div>`;
+      const msg = encodeURIComponent(`Hi ${a.da_patients.name}, your appointment with ${a.confirmed_doctor ? a.confirmed_doctor.name : ''} is confirmed on ${a.confirmed_date} at ${a.confirmed_time.slice(0,5)}, at ${c.name}${c.address ? ' (' + c.address + ')' : ''}.`);
+      const phone = (a.da_patients.phone || '').replace(/\D/g,'');
+      const waLink = phone ? `https://wa.me/91${phone}?text=${msg}` : '#';
+      html += `<div class="apptRow">
+        <span>${a.confirmed_time.slice(0,5)} — ${a.da_patients.name}</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          ${a.confirmed_doctor ? a.confirmed_doctor.name : ''}
+          <button class="btn small" style="background:#25D366;" onclick="window.open('${waLink}','_blank')" ${!phone ? 'disabled' : ''}>WhatsApp</button>
+        </span>
+      </div>`;
     });
   });
   html += '</div>';
