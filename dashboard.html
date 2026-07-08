@@ -242,6 +242,12 @@ let doctors = [], clinics = [], schedule = [];
 let staffCurrentPatient = null;
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
+function fmtDate(iso){
+  if(!iso) return '';
+  const parts = iso.split('-');
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso;
+}
+
 // Custom Day/Month/Year picker - always dd-mm-yyyy, independent of device locale
 function initDatePicker(hiddenId, onChangeCallback){
   const hidden = document.getElementById(hiddenId);
@@ -464,7 +470,7 @@ async function loadPending(){
       <div class="top"><b>${a.da_patients.name}</b><span class="pill">${prefDoctorLabel}</span></div>
       <div class="detail">
         ${a.da_patients.age} yrs, ${a.da_patients.sex} · ${a.da_patients.phone}<br>
-        Wants: ${a.preferred_date} (${DAY_NAMES[dow]}) · ${a.preferred_session}
+        Wants: ${fmtDate(a.preferred_date)} (${DAY_NAMES[dow]}) · ${a.preferred_session}
       </div>
       <label>Assign Provider</label>
       <select class="assignDoctor">${doctorOptions || '<option value="">No provider available that day</option>'}</select>
@@ -536,7 +542,7 @@ async function confirmAppt(id, btn){
   const patient = apptData.da_patients;
   const phone = (patient && patient.phone || '').replace(/\D/g,'');
   if(phone){
-    const msg = encodeURIComponent(`Hi ${patient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${date} at ${time}, at ${clinicName(clinic_id)}.`);
+    const msg = encodeURIComponent(`Hi ${patient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${fmtDate(date)} at ${time}, at ${clinicName(clinic_id)}.`);
     if(confirm('Confirmed! Send WhatsApp message to patient now?')){
       window.open(`https://wa.me/91${phone}?text=${msg}`, '_blank');
     }
@@ -682,7 +688,7 @@ async function staffConfirmBooking(patientId){
   let waHtml = '';
   const phone = (staffCurrentPatient && staffCurrentPatient.phone || '').replace(/\D/g,'');
   if(phone){
-    const waMsg = encodeURIComponent(`Hi ${staffCurrentPatient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${date} at ${time}, at ${clinicName(clinic_id)}.`);
+    const waMsg = encodeURIComponent(`Hi ${staffCurrentPatient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${fmtDate(date)} at ${time}, at ${clinicName(clinic_id)}.`);
     waHtml = `<button class="btn small" style="background:#25D366;margin-top:8px;" onclick="window.open('https://wa.me/91${phone}?text=${waMsg}','_blank')">Send WhatsApp Confirmation</button>`;
   }
   msgEl.innerHTML = '<div class="msg">Appointment booked!</div>' + waHtml;
@@ -708,7 +714,7 @@ async function loadSchedule(){
     if(rows.length === 0) return;
     html += `<div class="clinicHead">${c.name}</div>`;
     rows.forEach(a => {
-      const msg = encodeURIComponent(`Hi ${a.da_patients.name}, your appointment with ${a.confirmed_doctor ? a.confirmed_doctor.name : ''} is confirmed on ${a.confirmed_date} at ${a.confirmed_time.slice(0,5)}, at ${c.name}${c.address ? ' (' + c.address + ')' : ''}.`);
+      const msg = encodeURIComponent(`Hi ${a.da_patients.name}, your appointment with ${a.confirmed_doctor ? a.confirmed_doctor.name : ''} is confirmed on ${fmtDate(a.confirmed_date)} at ${a.confirmed_time.slice(0,5)}, at ${c.name}${c.address ? ' (' + c.address + ')' : ''}.`);
       const phone = (a.da_patients.phone || '').replace(/\D/g,'');
       const waLink = phone ? `https://wa.me/91${phone}?text=${msg}` : '#';
       html += `<div class="apptRow">
@@ -857,7 +863,7 @@ async function exportExcel(){
   if(error || !data || data.length === 0){ msgEl.innerHTML = '<div class="msg err">No confirmed appointments in this range</div>'; return; }
 
   const rows = data.map(a => ({
-    Date: a.confirmed_date,
+    Date: fmtDate(a.confirmed_date),
     Time: a.confirmed_time,
     Patient: a.da_patients.name,
     Phone: a.da_patients.phone,

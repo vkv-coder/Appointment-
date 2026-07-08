@@ -177,6 +177,12 @@ let clinicsCache = [];
 let scheduleCache = [];
 let ownerInfo = null;
 
+function fmtDate(iso){
+  if(!iso) return '';
+  const parts = iso.split('-');
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso;
+}
+
 // Custom Day/Month/Year picker - always dd-mm-yyyy, independent of device locale
 function initDatePicker(hiddenId, onChangeCallback){
   const hidden = document.getElementById(hiddenId);
@@ -503,10 +509,10 @@ async function loadAppointments(){
   }
 
   list.innerHTML = data.map(a => {
-    let body = `<div class="detail">Preferred: ${a.preferred_date} · ${a.preferred_session}</div>`;
+    let body = `<div class="detail">Preferred: ${fmtDate(a.preferred_date)} · ${a.preferred_session}</div>`;
     let waBtn = '';
     if(a.status === 'confirmed'){
-      body += `<div class="detail" style="margin-top:6px;"><b>Confirmed:</b> ${a.confirmed_date} at ${a.confirmed_time}<br>
+      body += `<div class="detail" style="margin-top:6px;"><b>Confirmed:</b> ${fmtDate(a.confirmed_date)} at ${a.confirmed_time}<br>
         ${a.confirmed_doctor ? a.confirmed_doctor.name : ''} - ${a.confirmed_clinic ? a.confirmed_clinic.name : ''}<br>
         ${a.confirmed_clinic ? a.confirmed_clinic.address : ''}</div>`;
     }

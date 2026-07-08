@@ -56,6 +56,13 @@ function handleTelegramMessage(message) {
   sendTelegram(chatId, text);
 }
 
+// ---------- format yyyy-mm-dd as dd-mm-yyyy for messages ----------
+function fmtDate(iso) {
+  if (!iso) return "";
+  const parts = iso.split("-");
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso;
+}
+
 // ---------- helper: fetch a single row from Supabase ----------
 function sbGet(table, filterCol, filterVal) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${filterCol}=eq.${filterVal}&select=*`;
@@ -92,7 +99,7 @@ function handleNewRequest(record) {
     `🦷 New Appointment Request - ${owner ? owner.clinic_group_name : ""}\n` +
     `Patient: ${patient ? patient.name : "Unknown"}\n` +
     `Phone: ${patient ? patient.phone : "-"}\n` +
-    `Preferred: ${record.preferred_date} (${record.preferred_session})\n` +
+    `Preferred: ${fmtDate(record.preferred_date)} (${record.preferred_session})\n` +
     `Provider: ${doctorLabel}\n\n` +
     `Confirm here: ${DASHBOARD_URL}`;
 
@@ -114,7 +121,7 @@ function handleConfirmed(record, isInstant) {
     `Provider: ${doctor ? doctor.name : "-"}\n` +
     `Location: ${clinic ? clinic.name : "-"}\n` +
     `Address: ${clinic ? clinic.address : "-"}\n` +
-    `Date: ${record.confirmed_date}\n` +
+    `Date: ${fmtDate(record.confirmed_date)}\n` +
     `Time: ${record.confirmed_time}`;
 
   if (patient && patient.telegram_id) sendTelegram(patient.telegram_id, text);
@@ -127,7 +134,7 @@ function handleConfirmed(record, isInstant) {
       `Patient: ${patient ? patient.name : "-"} (${patient ? patient.phone : "-"})\n` +
       `Provider: ${doctor ? doctor.name : "-"}\n` +
       `Location: ${clinic ? clinic.name : "-"}\n` +
-      `Date: ${record.confirmed_date}  Time: ${record.confirmed_time}`;
+      `Date: ${fmtDate(record.confirmed_date)}  Time: ${record.confirmed_time}`;
     const chatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
     sendTelegramMulti(chatId, providerText);
     const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
