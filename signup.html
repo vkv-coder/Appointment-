@@ -16,7 +16,7 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;}
   label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:14px 0 6px;}
   label:first-child{margin-top:0;}
-  input{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;}
+  input,select{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;}
   .req{color:var(--coral);}
   .btn{width:100%;padding:14px;border:none;border-radius:12px;background:var(--teal);color:#fff;font-size:15.5px;font-weight:600;margin-top:20px;cursor:pointer;}
   .msg{font-size:13px;padding:10px 12px;border-radius:10px;margin-top:12px;}
@@ -27,18 +27,31 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Register Your Clinic</h1>
+  <h1>Register as a Service Provider</h1>
   <div class="sub">Fill this once. Your account will be reviewed and approved before you can log in.</div>
 
   <div class="card" id="formCard">
-    <label>Clinic / Practice Name <span class="req">*</span></label>
+    <label>Category / Specialty <span class="req">*</span></label>
+    <select id="categorySelect" onchange="toggleOtherCategory()">
+      <option value="">Select category</option>
+      <option>Dentist</option>
+      <option>Psychiatrist</option>
+      <option>Homeopath</option>
+      <option>General Physician</option>
+      <option>Dermatologist (Skin Specialist)</option>
+      <option>Physiotherapist</option>
+      <option>Dietitian / Nutritionist</option>
+      <option>Chartered Accountant</option>
+      <option>Lawyer / Advocate</option>
+      <option value="Other">Other (type below)</option>
+    </select>
+    <input type="text" id="categoryOther" placeholder="Type your category" style="margin-top:8px;" class="hidden">
+
+    <label>Organisation / Provider Name <span class="req">*</span></label>
     <input type="text" id="clinicName" placeholder="e.g. Doshi Dental Clinics">
 
-    <label>Owner / Doctor Name <span class="req">*</span></label>
+    <label>Owner / Provider Name <span class="req">*</span></label>
     <input type="text" id="ownerName" placeholder="Your full name">
-
-    <label>Category / Specialty <span class="req">*</span></label>
-    <input type="text" id="category" placeholder="e.g. Dental, Legal, CA, Physiotherapy">
 
     <label>Mobile Number <span class="req">*</span></label>
     <input type="tel" id="phone" maxlength="10" placeholder="10-digit mobile number">
@@ -68,17 +81,23 @@ const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+function toggleOtherCategory(){
+  const sel = document.getElementById('categorySelect').value;
+  document.getElementById('categoryOther').classList.toggle('hidden', sel !== 'Other');
+}
+
 async function submitSignup(){
+  const catSel = document.getElementById('categorySelect').value;
+  const category = catSel === 'Other' ? document.getElementById('categoryOther').value.trim() : catSel;
   const clinic_group_name = document.getElementById('clinicName').value.trim();
   const owner_name = document.getElementById('ownerName').value.trim();
-  const category = document.getElementById('category').value.trim();
   const phone = document.getElementById('phone').value.trim();
   const email = document.getElementById('email').value.trim();
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
 
   const msgEl = document.getElementById('msg');
-  if(!clinic_group_name || !owner_name || !category || !phone || !username || !password){
+  if(!category || !clinic_group_name || !owner_name || !phone || !username || !password){
     msgEl.innerHTML = '<div class="msg err">Please fill all mandatory fields</div>';
     return;
   }

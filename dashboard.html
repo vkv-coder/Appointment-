@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clinic Dashboard</title>
+<title>Provider Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -52,7 +52,7 @@
 
   <!-- LOGIN -->
   <div class="card" id="gateCard">
-    <h1>Clinic Dashboard</h1>
+    <h1>Provider Dashboard</h1>
     <div class="sub">Log in with your clinic account</div>
     <label>Username</label>
     <input type="text" id="loginUser">
@@ -76,7 +76,7 @@
       <div class="tab active" data-tab="pending" onclick="switchTab('pending')">Pending</div>
       <div class="tab" data-tab="addappt" onclick="switchTab('addappt')">Add Appointment</div>
       <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">Date Schedule</div>
-      <div class="tab" data-tab="settings" onclick="switchTab('settings')">Clinics & Doctors</div>
+      <div class="tab" data-tab="settings" onclick="switchTab('settings')">Locations & Providers</div>
       <div class="tab" data-tab="export" onclick="switchTab('export')">Export Excel</div>
     </div>
 
@@ -84,7 +84,7 @@
 
     <div id="addapptTab" class="hidden">
       <div class="card">
-        <label>Patient Mobile Number</label>
+        <label>User Mobile Number</label>
         <input type="tel" id="staffPhone" maxlength="10" placeholder="10-digit mobile number">
         <button class="btn small" style="margin-top:8px;" onclick="staffSearchPatient()">Search</button>
         <div id="staffPatientArea"></div>
@@ -101,9 +101,9 @@
 
     <div id="settingsTab" class="hidden">
       <div class="card">
-        <div class="clinicHead">Your Clinics</div>
+        <div class="clinicHead">Your Locations</div>
         <div id="clinicListArea"></div>
-        <label>Add New Clinic</label>
+        <label>Add New Location</label>
         <input type="text" id="newClinicName" placeholder="Clinic name">
         <input type="text" id="newClinicAddress" placeholder="Address" style="margin-top:8px;">
         <label>Weekly Off Days</label>
@@ -112,21 +112,21 @@
       </div>
 
       <div class="card">
-        <div class="clinicHead">Your Doctors</div>
+        <div class="clinicHead">Your Providers</div>
         <div id="doctorListArea"></div>
-        <label>Add New Doctor</label>
+        <label>Add New Provider</label>
         <input type="text" id="newDoctorName" placeholder="Doctor name">
         <input type="text" id="newDoctorTelegram" placeholder="Telegram Chat ID (optional)" style="margin-top:8px;">
         <input type="email" id="newDoctorEmail" placeholder="Email (optional)" style="margin-top:8px;">
-        <button class="btn wide" onclick="addDoctor()">Add Doctor</button>
+        <button class="btn wide" onclick="addDoctor()">Add Provider</button>
       </div>
 
       <div class="card">
         <div class="clinicHead">Weekly Schedule</div>
         <div id="scheduleListArea"></div>
-        <label>Doctor</label>
+        <label>Provider</label>
         <select id="schDoctor"></select>
-        <label>Clinic</label>
+        <label>Location</label>
         <select id="schClinic"></select>
         <label>Day of Week</label>
         <select id="schDay">
@@ -277,9 +277,9 @@ async function loadPending(){
         ${a.da_patients.age} yrs, ${a.da_patients.sex} · ${a.da_patients.phone}<br>
         Wants: ${a.preferred_date} (${DAY_NAMES[dow]}) · ${a.preferred_session}
       </div>
-      <label>Assign Doctor</label>
-      <select class="assignDoctor">${doctorOptions || '<option value="">No doctor available that day</option>'}</select>
-      <label>Clinic</label>
+      <label>Assign Provider</label>
+      <select class="assignDoctor">${doctorOptions || '<option value="">No provider available that day</option>'}</select>
+      <label>Location</label>
       <select class="assignClinic"></select>
       <label>Time Slot</label>
       <select class="assignSlot"></select>
@@ -395,13 +395,13 @@ function renderStaffBookingForm(patient){
   const doctorOptions = doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
   area.innerHTML = `
     <div class="msg">Booking for: <b>${patient.name}</b> (${patient.phone})</div>
-    <label>Doctor</label>
+    <label>Provider</label>
     <select id="sBookDoctor">${doctorOptions}</select>
     <label>Date</label>
     <input type="date" id="sBookDate" min="${new Date().toISOString().split('T')[0]}">
     <label>Session</label>
     <select id="sBookSession"><option value="morning">Morning</option><option value="evening">Evening</option></select>
-    <label>Clinic</label>
+    <label>Location</label>
     <select id="sBookClinic"></select>
     <label>Time Slot</label>
     <select id="sBookSlot"></select>

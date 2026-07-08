@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Find a Doctor / Consultant</title>
+<title>Find a Provider</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -23,7 +23,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Find a Doctor / Consultant</h1>
+  <h1>Find a Provider</h1>
   <div class="sub">Browse and book directly - each is independently managed</div>
 
   <select id="catFilter" onchange="renderList()">
@@ -71,7 +71,7 @@ function renderList(){
         <div class="name">${o.clinic_group_name}</div>
         ${o.category ? `<div class="cat">${o.category}</div>` : ''}
       </div>
-      <button class="btn" onclick="window.location.href='index.html?owner=${o.id}'">Book Now</button>
+      <button class="btn" onclick="window.location.href='book.html?owner=${o.id}'">Book Now</button>
     </div>
   `).join('');
 }

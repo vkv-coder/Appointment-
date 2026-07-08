@@ -51,15 +51,15 @@ function sbGet(table, filterCol, filterVal) {
 // ---------- new clinic sign-up -> notify Vijay ----------
 function handleNewOwnerSignup(record) {
   const text =
-    `🆕 New Clinic Sign-up\n` +
-    `Clinic: ${record.clinic_group_name}\n` +
+    `🆕 New Provider Sign-up\n` +
+    `Organisation: ${record.clinic_group_name}\n` +
     `Owner: ${record.owner_name}\n` +
     `Phone: ${record.phone}\n` +
     `Username: ${record.username}\n\n` +
     `Approve here: ${ADMIN_APPROVAL_URL}`;
 
   sendTelegram(VIJAY_TELEGRAM_CHAT_ID, text);
-  MailApp.sendEmail(SUPPORT_EMAIL, "New Clinic Sign-up - " + record.clinic_group_name, text);
+  MailApp.sendEmail(SUPPORT_EMAIL, "New Provider Sign-up - " + record.clinic_group_name, text);
 }
 
 // ---------- new pending appointment request -> notify doctor/owner ----------
@@ -67,14 +67,14 @@ function handleNewRequest(record) {
   const patient = sbGet("da_patients", "id", record.patient_id);
   const doctor = record.doctor_id ? sbGet("da_doctors", "id", record.doctor_id) : null;
   const owner = sbGet("da_owners", "id", record.owner_id);
-  const doctorLabel = doctor ? doctor.name : "Any Doctor";
+  const doctorLabel = doctor ? doctor.name : "Any Provider";
 
   const text =
     `🦷 New Appointment Request - ${owner ? owner.clinic_group_name : ""}\n` +
     `Patient: ${patient ? patient.name : "Unknown"}\n` +
     `Phone: ${patient ? patient.phone : "-"}\n` +
     `Preferred: ${record.preferred_date} (${record.preferred_session})\n` +
-    `Doctor: ${doctorLabel}\n\n` +
+    `Provider: ${doctorLabel}\n\n` +
     `Confirm here: ${DASHBOARD_URL}`;
 
   const doctorChatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
@@ -92,8 +92,8 @@ function handleConfirmed(record) {
 
   const text =
     `✅ Appointment Confirmed\n` +
-    `Doctor: ${doctor ? doctor.name : "-"}\n` +
-    `Clinic: ${clinic ? clinic.name : "-"}\n` +
+    `Provider: ${doctor ? doctor.name : "-"}\n` +
+    `Location: ${clinic ? clinic.name : "-"}\n` +
     `Address: ${clinic ? clinic.address : "-"}\n` +
     `Date: ${record.confirmed_date}\n` +
     `Time: ${record.confirmed_time}`;
