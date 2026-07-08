@@ -74,6 +74,16 @@
       <div><a href="faq.html" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">How does this work?</a> &nbsp;|&nbsp; <span class="logout" onclick="logout()">Logout</span></div>
     </div>
 
+    <div class="card" style="padding:14px 16px;">
+      <label style="margin:0 0 6px;">Your Booking Link (share this with patients/clients)</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="myBookingLink" readonly style="font-size:12.5px;">
+        <button class="btn small" onclick="copyBookingLink()">Copy</button>
+        <button class="btn small" style="background:#25D366;" onclick="shareBookingLinkWhatsApp()">WhatsApp</button>
+      </div>
+      <div id="linkCopyMsg"></div>
+    </div>
+
     <div class="tabs">
       <div class="tab active" data-tab="pending" onclick="switchTab('pending')">Pending</div>
       <div class="tab" data-tab="addappt" onclick="switchTab('addappt')">Add Appointment</div>
@@ -399,12 +409,30 @@ async function enterDash(){
   document.getElementById('gateCard').classList.add('hidden');
   document.getElementById('mainDash').classList.remove('hidden');
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
+  document.getElementById('myBookingLink').value = `${window.location.origin}/book.html?owner=${OWNER.id}`;
   populateProfileForm();
   await refreshData();
   initDatePicker('scheduleDate', loadSchedule);
   initDatePicker('exportFrom');
   initDatePicker('exportTo');
   loadPending();
+}
+
+function copyBookingLink(){
+  const input = document.getElementById('myBookingLink');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(() => {
+    document.getElementById('linkCopyMsg').innerHTML = '<div class="msg">Copied!</div>';
+  }).catch(() => {
+    document.execCommand('copy');
+    document.getElementById('linkCopyMsg').innerHTML = '<div class="msg">Copied!</div>';
+  });
+}
+
+function shareBookingLinkWhatsApp(){
+  const link = document.getElementById('myBookingLink').value;
+  const msg = encodeURIComponent(`Book an appointment with ${OWNER.clinic_group_name} here: ${link}`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
 }
 
 async function refreshData(){
