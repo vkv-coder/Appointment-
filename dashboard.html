@@ -62,6 +62,43 @@
     <input type="password" id="loginPass">
     <button class="btn wide" onclick="doLogin()">Log In</button>
     <div id="gateMsg"></div>
+    <div style="text-align:center;margin-top:12px;">
+      <a href="#" onclick="showForgotPass()" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">Forgot Password?</a>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD MODAL -->
+  <div id="forgotModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;">
+    <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:90%;max-width:400px;">
+        <div style="font-size:16px;font-weight:700;color:#0B5D5D;margin-bottom:6px;">🔐 Reset Password</div>
+
+        <!-- Step 1: Verify identity -->
+        <div id="forgot-s1">
+          <div style="font-size:13px;color:#666;margin-bottom:12px;">Enter your username and registered email to verify identity.</div>
+          <label style="font-size:12px;font-weight:600;">Username</label>
+          <input type="text" id="forgotUser" placeholder="Your username" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
+          <label style="font-size:12px;font-weight:600;">Registered Email</label>
+          <input type="email" id="forgotEmail" placeholder="Your registered email" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
+          <div id="forgotMsg1" style="font-size:12px;margin-bottom:8px;display:none;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="verifyForgotIdentity()" style="flex:1;background:#0B5D5D;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;">Verify →</button>
+            <button onclick="hideForgotPass()" style="background:#f5f5f5;border:1px solid #ddd;border-radius:10px;padding:11px 16px;font-size:13px;cursor:pointer;">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Set new password -->
+        <div id="forgot-s2" style="display:none;">
+          <div style="font-size:13px;color:#2E7D32;margin-bottom:12px;">✅ Identity verified! Set your new password.</div>
+          <label style="font-size:12px;font-weight:600;">New Password</label>
+          <input type="password" id="forgotNewPass" placeholder="New password" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
+          <label style="font-size:12px;font-weight:600;">Confirm Password</label>
+          <input type="password" id="forgotConfirmPass" placeholder="Confirm password" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
+          <div id="forgotMsg2" style="font-size:12px;margin-bottom:8px;display:none;"></div>
+          <button onclick="confirmForgotPass()" style="width:100%;background:#0B5D5D;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;">Update Password</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- MAIN -->
@@ -305,6 +342,45 @@ window.onload = () => {
     offDaysDiv.appendChild(b);
   });
 };
+
+// ── FORGOT PASSWORD ──
+var forgotOwner=null;
+function showForgotPass(){
+  document.getElementById('forgotModal').style.display='block';
+  document.getElementById('forgot-s1').style.display='block';
+  document.getElementById('forgot-s2').style.display='none';
+  document.getElementById('forgotUser').value='';
+  document.getElementById('forgotEmail').value='';
+  document.getElementById('forgotMsg1').style.display='none';
+  forgotOwner=null;
+}
+function hideForgotPass(){
+  document.getElementById('forgotModal').style.display='none';
+}
+async function verifyForgotIdentity(){
+  var username=document.getElementById('forgotUser').value.trim();
+  var email=document.getElementById('forgotEmail').value.trim().toLowerCase();
+  var msg=document.getElementById('forgotMsg1');
+  if(!username||!email){msg.textContent='Enter both username and email.';msg.style.color='#D32F2F';msg.style.display='block';return;}
+  msg.textContent='Verifying...';msg.style.color='#666';msg.style.display='block';
+  var{data,error}=await sb.from('da_owners').select('*').eq('username',username).maybeSingle();
+  if(error||!data){msg.textContent='Username not found.';msg.style.color='#D32F2F';return;}
+  if((data.email||'').toLowerCase()!==email){msg.textContent='Email does not match our records.';msg.style.color='#D32F2F';return;}
+  forgotOwner=data;
+  document.getElementById('forgot-s1').style.display='none';
+  document.getElementById('forgot-s2').style.display='block';
+}
+async function confirmForgotPass(){
+  var newPass=document.getElementById('forgotNewPass').value;
+  var confirm=document.getElementById('forgotConfirmPass').value;
+  var msg=document.getElementById('forgotMsg2');
+  if(!newPass||newPass.length<6){msg.textContent='Password must be at least 6 characters.';msg.style.color='#D32F2F';msg.style.display='block';return;}
+  if(newPass!==confirm){msg.textContent='Passwords do not match.';msg.style.color='#D32F2F';msg.style.display='block';return;}
+  var{error}=await sb.from('da_owners').update({password:newPass}).eq('id',forgotOwner.id);
+  if(error){msg.textContent='Error: '+error.message;msg.style.color='#D32F2F';msg.style.display='block';return;}
+  hideForgotPass();
+  document.getElementById('gateMsg').innerHTML='<div class="msg ok">Password updated! Please login with new password.</div>';
+}
 
 async function doLogin(){
   const username = document.getElementById('loginUser').value.trim();
