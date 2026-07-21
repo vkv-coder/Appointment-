@@ -46,12 +46,17 @@
 <script>
 const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
-const ADMIN_PASSWORD = "changeme123"; // change this - only Vijay should know it
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function checkPw(){
+async function checkPw(){
   const pw = document.getElementById('gatePw').value;
-  if(pw === ADMIN_PASSWORD){
+  const res = await fetch('https://telegram-notify.unigoods2026.workers.dev/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'checkAppointmentAdminPassword', password: pw})
+  });
+  const data = await res.json();
+  if(data.valid){
     document.getElementById('gateCard').classList.add('hidden');
     document.getElementById('mainAdmin').classList.remove('hidden');
     loadOwners();
