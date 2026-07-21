@@ -89,7 +89,9 @@
 
         <!-- Step 2: Set new password -->
         <div id="forgot-s2" style="display:none;">
-          <div style="font-size:13px;color:#2E7D32;margin-bottom:12px;">✅ Identity verified! Set your new password.</div>
+          <div style="font-size:13px;color:#2E7D32;margin-bottom:12px;">📧 Check your email! Enter the 6-digit code we sent, and your new password.</div>
+          <label style="font-size:12px;font-weight:600;">Code from email</label>
+          <input type="text" id="forgotOtp" placeholder="6-digit code" maxlength="6" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
           <label style="font-size:12px;font-weight:600;">New Password</label>
           <input type="password" id="forgotNewPass" placeholder="New password" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;"/>
           <label style="font-size:12px;font-weight:600;">Confirm Password</label>
@@ -366,17 +368,27 @@ async function verifyForgotIdentity(){
   var{data,error}=await sb.from('da_owners').select('*').eq('username',username).maybeSingle();
   if(error||!data){msg.textContent='Username not found.';msg.style.color='#D32F2F';return;}
   if((data.email||'').toLowerCase()!==email){msg.textContent='Email does not match our records.';msg.style.color='#D32F2F';return;}
+  var otp=String(Math.floor(100000+Math.random()*900000));
+  var expires=new Date(Date.now()+10*60*1000).toISOString();
+  await sb.from('da_owners').update({reset_otp:otp,reset_otp_expires:expires}).eq('id',data.id);
+  await fetch('https://telegram-notify.unigoods2026.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sendEmail',to:data.email,subject:'Your password reset code',html:'<p>Your password reset code is:</p><h2 style="letter-spacing:4px;">'+otp+'</h2><p style="font-size:13px;color:#666;">This code expires in 10 minutes. If you didn\'t request this, you can ignore this email.</p>'})});
   forgotOwner=data;
   document.getElementById('forgot-s1').style.display='none';
   document.getElementById('forgot-s2').style.display='block';
 }
 async function confirmForgotPass(){
+  var otp=document.getElementById('forgotOtp').value.trim();
   var newPass=document.getElementById('forgotNewPass').value;
   var confirm=document.getElementById('forgotConfirmPass').value;
   var msg=document.getElementById('forgotMsg2');
+  if(!/^[0-9]{6}$/.test(otp)){msg.textContent='Enter the 6-digit code from your email.';msg.style.color='#D32F2F';msg.style.display='block';return;}
   if(!newPass||newPass.length<6){msg.textContent='Password must be at least 6 characters.';msg.style.color='#D32F2F';msg.style.display='block';return;}
   if(newPass!==confirm){msg.textContent='Passwords do not match.';msg.style.color='#D32F2F';msg.style.display='block';return;}
-  var{error}=await sb.from('da_owners').update({password:newPass}).eq('id',forgotOwner.id);
+  var{data:fresh,error:fetchErr}=await sb.from('da_owners').select('reset_otp,reset_otp_expires').eq('id',forgotOwner.id).maybeSingle();
+  if(fetchErr||!fresh||fresh.reset_otp!==otp||new Date(fresh.reset_otp_expires)<new Date()){
+    msg.textContent='Incorrect or expired code. Please request a new one.';msg.style.color='#D32F2F';msg.style.display='block';return;
+  }
+  var{error}=await sb.from('da_owners').update({password:newPass,reset_otp:null,reset_otp_expires:null}).eq('id',forgotOwner.id);
   if(error){msg.textContent='Error: '+error.message;msg.style.color='#D32F2F';msg.style.display='block';return;}
   hideForgotPass();
   document.getElementById('gateMsg').innerHTML='<div class="msg ok">Password updated! Please login with new password.</div>';
