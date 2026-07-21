@@ -104,6 +104,16 @@
     <div id="regMsg"></div>
   </div>
 
+  <!-- OTP VERIFICATION (returning patients who have an email on file) -->
+  <div class="card hidden" id="otpCard">
+    <div class="sub" style="margin-bottom:8px;">We've emailed a 6-digit code to <b id="otpEmailShown"></b></div>
+    <label>Enter Code</label>
+    <input type="text" id="otpCode" maxlength="6" placeholder="6-digit code">
+    <button class="btn" onclick="verifyPatientOtp()">Verify & Continue</button>
+    <div style="margin-top:8px;font-size:12px;"><a href="#" onclick="resendPatientOtp();return false;">Resend code</a></div>
+    <div id="otpMsg"></div>
+  </div>
+
   <!-- MAIN APP -->
   <div class="hidden" id="mainApp">
     <div class="toprow">
@@ -268,6 +278,8 @@ window.onload = async () => {
   }
 };
 
+let pendingPatient = null;
+
 async function checkPhone(){
   clearMsg('loginMsg');
   const phone = document.getElementById('loginPhone').value.trim();
@@ -275,14 +287,57 @@ async function checkPhone(){
   const { data, error } = await sb.from('da_patients').select('*').eq('owner_id', OWNER_ID).eq('phone', phone).maybeSingle();
   if(error){ showMsg('loginMsg','Something went wrong. Try again.','err'); return; }
   if(data){
-    currentPatient = data;
     localStorage.setItem('da_phone_' + OWNER_ID, phone);
-    enterApp();
+    if(data.email && localStorage.getItem('da_verified_' + data.id) !== '1'){
+      pendingPatient = data;
+      await sendPatientOtp();
+    } else {
+      currentPatient = data;
+      enterApp();
+    }
   } else {
     document.getElementById('regPhone').value = phone;
     document.getElementById('loginCard').classList.add('hidden');
     document.getElementById('regCard').classList.remove('hidden');
   }
+}
+
+async function sendPatientOtp(){
+  const otp = String(Math.floor(100000 + Math.random()*900000));
+  const expires = new Date(Date.now() + 10*60*1000).toISOString();
+  await sb.from('da_patients').update({reset_otp: otp, reset_otp_expires: expires}).eq('id', pendingPatient.id);
+  await fetch('https://telegram-notify.unigoods2026.workers.dev/', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action:'sendEmail', to: pendingPatient.email, subject:'Your login code',
+      html:'<p>Your login code is:</p><h2 style="letter-spacing:4px;">'+otp+'</h2><p style="font-size:13px;color:#666;">This code expires in 10 minutes. If you didn\'t request this, you can ignore this email.</p>'})
+  });
+  document.getElementById('otpEmailShown').textContent = pendingPatient.email;
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('otpCard').classList.remove('hidden');
+  document.getElementById('otpCode').value = '';
+  clearMsg('otpMsg');
+}
+
+async function resendPatientOtp(){
+  clearMsg('otpMsg');
+  await sendPatientOtp();
+  showMsg('otpMsg','A new code has been sent.','ok');
+}
+
+async function verifyPatientOtp(){
+  clearMsg('otpMsg');
+  const code = document.getElementById('otpCode').value.trim();
+  if(!/^[0-9]{6}$/.test(code)){ showMsg('otpMsg','Enter the 6-digit code from your email.','err'); return; }
+  const { data: fresh, error } = await sb.from('da_patients').select('reset_otp,reset_otp_expires').eq('id', pendingPatient.id).maybeSingle();
+  if(error || !fresh || fresh.reset_otp !== code || new Date(fresh.reset_otp_expires) < new Date()){
+    showMsg('otpMsg','Incorrect or expired code. Please try again or resend.','err'); return;
+  }
+  await sb.from('da_patients').update({reset_otp:null, reset_otp_expires:null}).eq('id', pendingPatient.id);
+  localStorage.setItem('da_verified_' + pendingPatient.id, '1');
+  currentPatient = pendingPatient;
+  pendingPatient = null;
+  document.getElementById('otpCard').classList.add('hidden');
+  enterApp();
 }
 
 async function registerPatient(){
@@ -305,6 +360,7 @@ async function registerPatient(){
   if(error){ showMsg('regMsg','Could not save. Number may already be registered.','err'); return; }
   currentPatient = data;
   localStorage.setItem('da_phone_' + OWNER_ID, phone);
+  localStorage.setItem('da_verified_' + data.id, '1');
   document.getElementById('regCard').classList.add('hidden');
   enterApp();
 }
