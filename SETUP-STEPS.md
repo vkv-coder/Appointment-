@@ -34,7 +34,7 @@ To find Doshi's owner ID for their direct booking link: Supabase → Table Edito
 ## 4. Google Apps Script (notifications)
 - script.google.com → New Project → paste `google-apps-script.gs`
 - Fill in SUPABASE_URL, SUPABASE_ANON_KEY
-- Run `setTelegramBotToken()` once from the Apps Script editor (Run button, pick that function) and paste the bot token when prompted — it's stored in Script Properties, not in the source file
+- Click the gear icon (Project Settings) → Script Properties → Add script property → Property: `TELEGRAM_BOT_TOKEN`, Value: the bot token → Save
 - Deploy → New deployment → Web app → Execute as **Me** → Access **Anyone**
 - Copy the deployment URL
 
