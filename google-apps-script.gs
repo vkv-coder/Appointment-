@@ -9,7 +9,12 @@
 const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
 
-const TELEGRAM_BOT_TOKEN = "8923280786:AAFLM1q1gjd8Gok9qakztDN9ZpUDAWLdfpY";
+// Set via: Project Settings (gear icon) -> Script Properties -> Add script property
+// -> Property: TELEGRAM_BOT_TOKEN, Value: <the bot token>
+function getTelegramBotToken() {
+  return PropertiesService.getScriptProperties().getProperty("TELEGRAM_BOT_TOKEN");
+}
+
 const VIJAY_TELEGRAM_CHAT_ID = "8507770594";
 const SUPPORT_EMAIL = "vkvcoder.support@gmail.com";
 const ADMIN_APPROVAL_URL = "https://appointment.anyapps.in/admin-approval.html";
@@ -143,10 +148,11 @@ function handleConfirmed(record, isInstant) {
 }
 
 function sendTelegram(chatId, text) {
-  if (!chatId || !TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN.indexOf("PASTE") === 0) {
+  const botToken = getTelegramBotToken();
+  if (!chatId || !botToken) {
     return;
   }
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   const response = UrlFetchApp.fetch(url, {
     method: "post",
     contentType: "application/x-www-form-urlencoded",
