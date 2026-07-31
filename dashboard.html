@@ -65,6 +65,11 @@
     <div style="text-align:center;margin-top:12px;">
       <a href="#" onclick="showForgotPass()" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">Forgot Password?</a>
     </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
+      <div style="font-size:11px;color:#E65100;font-weight:700;margin-bottom:8px;">🧪 Just looking? See a full sample dashboard</div>
+      <button class="btn wide" style="background:#455A64;" onclick="tryDemoLogin()">Try Demo Dashboard</button>
+      <div style="margin-top:10px;"><a href="faq.html" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">How does this work?</a></div>
+    </div>
   </div>
 
   <!-- FORGOT PASSWORD MODAL -->
@@ -329,10 +334,14 @@ function initDatePicker(hiddenId, onChangeCallback){
 }
 
 window.onload = () => {
-  const savedOwner = localStorage.getItem('da_owner');
-  if(savedOwner){
-    OWNER = JSON.parse(savedOwner);
-    enterDash();
+  if(new URLSearchParams(location.search).get('demo') === '1'){
+    tryDemoLogin();
+  } else {
+    const savedOwner = localStorage.getItem('da_owner');
+    if(savedOwner){
+      OWNER = JSON.parse(savedOwner);
+      enterDash();
+    }
   }
   const offDaysDiv = document.getElementById('newClinicOffDays');
   DAY_NAMES.forEach((d,i)=>{
@@ -402,6 +411,16 @@ function logout(){
   OWNER = null;
   document.getElementById('mainDash').classList.add('hidden');
   document.getElementById('gateCard').classList.remove('hidden');
+}
+
+async function tryDemoLogin(){
+  const msgEl = document.getElementById('gateMsg');
+  const { data, error } = await sb.rpc('da_owner_login', { p_username: 'demo_owner', p_password: 'AppointDemo2026!' });
+  const row = data && data[0];
+  if(error || !row){ msgEl.innerHTML = '<div class="msg err">Demo unavailable right now</div>'; return; }
+  OWNER = row;
+  localStorage.setItem('da_owner', JSON.stringify(row));
+  enterDash();
 }
 
 const SUB_CATEGORIES = {
