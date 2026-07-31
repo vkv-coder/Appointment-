@@ -346,7 +346,7 @@ window.onload = () => {
 };
 
 // ── FORGOT PASSWORD ──
-var forgotOwner=null;
+var forgotUsername=null;
 function showForgotPass(){
   document.getElementById('forgotModal').style.display='block';
   document.getElementById('forgot-s1').style.display='block';
@@ -354,25 +354,19 @@ function showForgotPass(){
   document.getElementById('forgotUser').value='';
   document.getElementById('forgotEmail').value='';
   document.getElementById('forgotMsg1').style.display='none';
-  forgotOwner=null;
+  forgotUsername=null;
 }
 function hideForgotPass(){
   document.getElementById('forgotModal').style.display='none';
 }
 async function verifyForgotIdentity(){
   var username=document.getElementById('forgotUser').value.trim();
-  var email=document.getElementById('forgotEmail').value.trim().toLowerCase();
+  var email=document.getElementById('forgotEmail').value.trim();
   var msg=document.getElementById('forgotMsg1');
   if(!username||!email){msg.textContent='Enter both username and email.';msg.style.color='#D32F2F';msg.style.display='block';return;}
-  msg.textContent='Verifying...';msg.style.color='#666';msg.style.display='block';
-  var{data,error}=await sb.from('da_owners').select('*').eq('username',username).maybeSingle();
-  if(error||!data){msg.textContent='Username not found.';msg.style.color='#D32F2F';return;}
-  if((data.email||'').toLowerCase()!==email){msg.textContent='Email does not match our records.';msg.style.color='#D32F2F';return;}
-  var otp=String(Math.floor(100000+Math.random()*900000));
-  var expires=new Date(Date.now()+10*60*1000).toISOString();
-  await sb.from('da_owners').update({reset_otp:otp,reset_otp_expires:expires}).eq('id',data.id);
-  await fetch('https://telegram-notify.unigoods2026.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sendEmail',to:data.email,subject:'Your password reset code',html:'<p>Your password reset code is:</p><h2 style="letter-spacing:4px;">'+otp+'</h2><p style="font-size:13px;color:#666;">This code expires in 10 minutes. If you didn\'t request this, you can ignore this email.</p>'})});
-  forgotOwner=data;
+  msg.textContent='Sending code...';msg.style.color='#666';msg.style.display='block';
+  await sb.rpc('da_owner_request_password_reset', { p_username: username, p_email: email });
+  forgotUsername=username;
   document.getElementById('forgot-s1').style.display='none';
   document.getElementById('forgot-s2').style.display='block';
 }
@@ -384,12 +378,8 @@ async function confirmForgotPass(){
   if(!/^[0-9]{6}$/.test(otp)){msg.textContent='Enter the 6-digit code from your email.';msg.style.color='#D32F2F';msg.style.display='block';return;}
   if(!newPass||newPass.length<6){msg.textContent='Password must be at least 6 characters.';msg.style.color='#D32F2F';msg.style.display='block';return;}
   if(newPass!==confirm){msg.textContent='Passwords do not match.';msg.style.color='#D32F2F';msg.style.display='block';return;}
-  var{data:fresh,error:fetchErr}=await sb.from('da_owners').select('reset_otp,reset_otp_expires').eq('id',forgotOwner.id).maybeSingle();
-  if(fetchErr||!fresh||fresh.reset_otp!==otp||new Date(fresh.reset_otp_expires)<new Date()){
-    msg.textContent='Incorrect or expired code. Please request a new one.';msg.style.color='#D32F2F';msg.style.display='block';return;
-  }
-  var{error}=await sb.from('da_owners').update({password:newPass,reset_otp:null,reset_otp_expires:null}).eq('id',forgotOwner.id);
-  if(error){msg.textContent='Error: '+error.message;msg.style.color='#D32F2F';msg.style.display='block';return;}
+  const { error } = await sb.rpc('da_owner_verify_reset_and_set_password', { p_username: forgotUsername, p_otp: otp, p_new_password: newPass });
+  if(error){msg.textContent='Incorrect or expired code. Please request a new one.';msg.style.color='#D32F2F';msg.style.display='block';return;}
   hideForgotPass();
   document.getElementById('gateMsg').innerHTML='<div class="msg ok">Password updated! Please login with new password.</div>';
 }
@@ -397,12 +387,13 @@ async function confirmForgotPass(){
 async function doLogin(){
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
-  const { data, error } = await sb.from('da_owners').select('*').eq('username', username).eq('password', password).maybeSingle();
   const msgEl = document.getElementById('gateMsg');
-  if(error || !data){ msgEl.innerHTML = '<div class="msg err">Invalid username or password</div>'; return; }
-  if(data.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
-  OWNER = data;
-  localStorage.setItem('da_owner', JSON.stringify(data));
+  const { data, error } = await sb.rpc('da_owner_login', { p_username: username, p_password: password });
+  const row = data && data[0];
+  if(error || !row){ msgEl.innerHTML = '<div class="msg err">Invalid username or password</div>'; return; }
+  if(row.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
+  OWNER = row;
+  localStorage.setItem('da_owner', JSON.stringify(row));
   enterDash();
 }
 
@@ -471,11 +462,18 @@ async function saveOwnerProfile(){
     clinic_group_name, owner_name, broad_category, category,
     phone, email: email || null, telegram_chat_id: telegram_chat_id || null
   };
-  if(newPassword) updates.password = newPassword;
 
-  const { error } = await sb.from('da_owners').update(updates).eq('id', OWNER.id);
   const msgEl = document.getElementById('ownerTelegramMsg');
+  const { error } = await sb.rpc('da_owner_update_profile', {
+    p_token: OWNER.session_token, p_clinic_group_name: clinic_group_name, p_owner_name: owner_name,
+    p_broad_category: broad_category, p_category: category, p_phone: phone,
+    p_email: updates.email, p_telegram_chat_id: updates.telegram_chat_id
+  });
   if(error){ msgEl.innerHTML = '<div class="msg err">Could not save. Try again.</div>'; return; }
+  if(newPassword){
+    const { error: pwErr } = await sb.rpc('da_owner_change_password', { p_token: OWNER.session_token, p_new_password: newPassword });
+    if(pwErr){ msgEl.innerHTML = '<div class="msg err">Profile saved but password change failed.</div>'; return; }
+  }
 
   Object.assign(OWNER, updates);
   localStorage.setItem('da_owner', JSON.stringify(OWNER));
@@ -485,13 +483,14 @@ async function saveOwnerProfile(){
 }
 
 async function enterDash(){
-  const { data: freshOwner } = await sb.from('da_owners').select('*').eq('id', OWNER.id).maybeSingle();
-  if(!freshOwner){
+  const { data: freshOwner, error } = await sb.rpc('da_owner_get_profile', { p_token: OWNER.session_token });
+  const row = freshOwner && freshOwner[0];
+  if(error || !row){
     alert('Your saved login is out of date. Please log in again.');
     logout();
     return;
   }
-  OWNER = freshOwner;
+  OWNER = Object.assign({}, row, { session_token: OWNER.session_token });
   localStorage.setItem('da_owner', JSON.stringify(OWNER));
 
   document.getElementById('gateCard').classList.add('hidden');
@@ -563,18 +562,14 @@ function genSlots(startStr, endStr){
 
 // ---------------- PENDING TAB ----------------
 async function loadPending(){
-  const { data, error } = await sb.from('da_appointments')
-    .select('*, da_patients(name, phone, age, sex), pref_doctor:da_doctors!da_appointments_doctor_id_fkey(name)')
-    .eq('owner_id', OWNER.id)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true });
+  const { data, error } = await sb.rpc('da_owner_pending_appointments', { p_token: OWNER.session_token });
 
   const list = document.getElementById('pendingList');
   if(error || !data || data.length === 0){ list.innerHTML = '<div class="empty">No pending requests</div>'; return; }
 
   list.innerHTML = data.map(a => {
     const dow = new Date(a.preferred_date + 'T00:00:00').getDay();
-    const prefDoctorLabel = a.doctor_id ? (a.pref_doctor ? a.pref_doctor.name : '') : 'Any Doctor';
+    const prefDoctorLabel = a.doctor_id ? (a.pref_doctor_name || '') : 'Any Doctor';
     const candidateDoctors = doctors.filter(doc => {
       if(a.doctor_id && doc.id !== a.doctor_id) return false;
       const rows = getDoctorDaySchedule(doc.id, dow);
@@ -583,9 +578,9 @@ async function loadPending(){
     const doctorOptions = candidateDoctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
 
     return `<div class="req" data-id="${a.id}" data-date="${a.preferred_date}" data-session="${a.preferred_session}">
-      <div class="top"><b>${a.da_patients.name}</b><span class="pill">${prefDoctorLabel}</span></div>
+      <div class="top"><b>${a.patient_name}</b><span class="pill">${prefDoctorLabel}</span></div>
       <div class="detail">
-        ${a.da_patients.age} yrs, ${a.da_patients.sex} · ${a.da_patients.phone}<br>
+        ${a.patient_age} yrs, ${a.patient_sex} · ${a.patient_phone}<br>
         Wants: ${fmtDate(a.preferred_date)} (${DAY_NAMES[dow]}) · ${a.preferred_session}
       </div>
       <label>Assign Provider</label>
@@ -648,19 +643,22 @@ async function confirmAppt(id, btn){
   const date = card.dataset.date;
   if(!doctor_id || !clinic_id || !time){ alert('Please select doctor, clinic and time slot'); return; }
 
-  const { data: apptData, error } = await sb.from('da_appointments').update({
-    status: 'confirmed', confirmed_doctor_id: doctor_id, confirmed_clinic_id: clinic_id,
-    confirmed_date: date, confirmed_time: time, updated_at: new Date().toISOString()
-  }).eq('id', id).select('*, da_patients(name, phone)').single();
+  const patientNameEl = card.querySelector('.top b');
+  const patientName = patientNameEl ? patientNameEl.textContent : '';
+  const patientPhoneMatch = card.querySelector('.detail').textContent.match(/·\s*([0-9]{10})/);
+  const patientPhone = patientPhoneMatch ? patientPhoneMatch[1] : '';
+
+  const { error } = await sb.rpc('da_owner_confirm_appointment', {
+    p_token: OWNER.session_token, p_appointment_id: id, p_doctor_id: doctor_id,
+    p_clinic_id: clinic_id, p_date: date, p_time: time
+  });
 
   if(error){ alert('Could not confirm. Try again.'); return; }
 
-  const patient = apptData.da_patients;
-  const phone = (patient && patient.phone || '').replace(/\D/g,'');
-  if(phone){
-    const msg = encodeURIComponent(`Hi ${patient.name}, your appointment with ${docName(doctor_id)} is confirmed on ${fmtDate(date)} at ${time}, at ${clinicName(clinic_id)}.`);
+  if(patientPhone){
+    const msg = encodeURIComponent(`Hi ${patientName}, your appointment with ${docName(doctor_id)} is confirmed on ${fmtDate(date)} at ${time}, at ${clinicName(clinic_id)}.`);
     if(confirm('Confirmed! Send WhatsApp message to patient now?')){
-      window.open(`https://wa.me/91${phone}?text=${msg}`, '_blank');
+      window.open(`https://wa.me/91${patientPhone}?text=${msg}`, '_blank');
     }
   }
   loadPending();
@@ -668,7 +666,7 @@ async function confirmAppt(id, btn){
 
 async function rejectAppt(id){
   if(!confirm('Reject this request?')) return;
-  await sb.from('da_appointments').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id);
+  await sb.rpc('da_owner_reject_appointment', { p_token: OWNER.session_token, p_appointment_id: id });
   loadPending();
 }
 
@@ -678,10 +676,11 @@ async function staffSearchPatient(){
   const area = document.getElementById('staffPatientArea');
   if(phone.length < 10){ area.innerHTML = '<div class="msg err">Enter a valid 10-digit number</div>'; return; }
 
-  const { data } = await sb.from('da_patients').select('*').eq('owner_id', OWNER.id).eq('phone', phone).maybeSingle();
+  const { data } = await sb.rpc('da_owner_search_patient', { p_token: OWNER.session_token, p_phone: phone });
+  const patient = data && data[0];
 
-  if(data){
-    renderStaffBookingForm(data);
+  if(patient){
+    renderStaffBookingForm(patient);
   } else {
     area.innerHTML = `
       <div class="msg">New patient - please fill details</div>
@@ -703,11 +702,11 @@ async function staffCreatePatient(phone){
   const email = document.getElementById('sNewEmail').value.trim();
   if(!name || !sex || !age){ alert('Name, sex and age are required'); return; }
 
-  const { data, error } = await sb.from('da_patients').insert({
-    owner_id: OWNER.id, name, sex, age: parseInt(age), phone, email: email || null
-  }).select().single();
-  if(error){ alert('Could not save patient'); return; }
-  renderStaffBookingForm(data);
+  const { data: patient, error } = await sb.rpc('da_owner_staff_create_patient', {
+    p_token: OWNER.session_token, p_name: name, p_sex: sex, p_age: parseInt(age), p_phone: phone, p_email: email || null
+  });
+  if(error || !patient){ alert('Could not save patient'); return; }
+  renderStaffBookingForm(patient);
 }
 
 function renderStaffBookingForm(patient){
@@ -792,11 +791,11 @@ async function staffConfirmBooking(patientId){
 
   if(!doctor_id || !date || !clinic_id || !time){ msgEl.innerHTML = '<div class="msg err">Please fill all fields</div>'; return; }
 
-  const { error } = await sb.from('da_appointments').insert({
-    owner_id: OWNER.id, patient_id: patientId, doctor_id,
-    preferred_session: session, preferred_date: date,
-    status: 'confirmed', confirmed_doctor_id: doctor_id, confirmed_clinic_id: clinic_id,
-    confirmed_date: date, confirmed_time: time, booked_by: 'staff'
+  const { error } = await sb.rpc('da_owner_staff_book_appointment', {
+    p_token: OWNER.session_token, p_patient_id: patientId, p_doctor_id: doctor_id,
+    p_preferred_session: session, p_preferred_date: date,
+    p_confirmed_doctor_id: doctor_id, p_confirmed_clinic_id: clinic_id,
+    p_confirmed_date: date, p_confirmed_time: time
   });
 
   if(error){ msgEl.innerHTML = '<div class="msg err">Could not book. Try again.</div>'; return; }
@@ -814,12 +813,7 @@ async function staffConfirmBooking(patientId){
 async function loadSchedule(){
   const date = document.getElementById('scheduleDate').value;
   if(!date) return;
-  const { data } = await sb.from('da_appointments')
-    .select('*, da_patients(name, phone), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name), confirmed_clinic:da_clinics(name, address)')
-    .eq('owner_id', OWNER.id)
-    .eq('confirmed_date', date)
-    .eq('status', 'confirmed')
-    .order('confirmed_time');
+  const { data } = await sb.rpc('da_owner_schedule_appointments', { p_token: OWNER.session_token, p_date: date });
 
   const view = document.getElementById('scheduleView');
   if(!data || data.length === 0){ view.innerHTML = '<div class="card"><div class="empty">No confirmed appointments this date</div></div>'; return; }
@@ -830,13 +824,13 @@ async function loadSchedule(){
     if(rows.length === 0) return;
     html += `<div class="clinicHead">${c.name}</div>`;
     rows.forEach(a => {
-      const msg = encodeURIComponent(`Hi ${a.da_patients.name}, your appointment with ${a.confirmed_doctor ? a.confirmed_doctor.name : ''} is confirmed on ${fmtDate(a.confirmed_date)} at ${a.confirmed_time.slice(0,5)}, at ${c.name}${c.address ? ' (' + c.address + ')' : ''}.`);
-      const phone = (a.da_patients.phone || '').replace(/\D/g,'');
+      const msg = encodeURIComponent(`Hi ${a.patient_name}, your appointment with ${a.doctor_name || ''} is confirmed on ${fmtDate(date)} at ${a.confirmed_time.slice(0,5)}, at ${c.name}${c.address ? ' (' + c.address + ')' : ''}.`);
+      const phone = (a.patient_phone || '').replace(/\D/g,'');
       const waLink = phone ? `https://wa.me/91${phone}?text=${msg}` : '#';
       html += `<div class="apptRow">
-        <span>${a.confirmed_time.slice(0,5)} — ${a.da_patients.name}</span>
+        <span>${a.confirmed_time.slice(0,5)} — ${a.patient_name}</span>
         <span style="display:flex;align-items:center;gap:8px;">
-          ${a.confirmed_doctor ? a.confirmed_doctor.name : ''}
+          ${a.doctor_name || ''}
           <button class="btn small" style="background:#25D366;" onclick="window.open('${waLink}','_blank')" ${!phone ? 'disabled' : ''}>WhatsApp</button>
         </span>
       </div>`;
@@ -886,7 +880,7 @@ async function addClinic(){
   const address = document.getElementById('newClinicAddress').value.trim();
   const offDays = Array.from(document.querySelectorAll('#newClinicOffDays .daybtn.on')).map(b=>parseInt(b.dataset.day));
   if(!name){ alert('Enter clinic name'); return; }
-  const { error } = await sb.from('da_clinics').insert({ owner_id: OWNER.id, name, address, off_days: offDays });
+  const { error } = await sb.rpc('da_owner_add_clinic', { p_token: OWNER.session_token, p_name: name, p_address: address, p_off_days: offDays });
   if(error){ alert('Could not add location: ' + error.message); return; }
   document.getElementById('newClinicName').value = '';
   document.getElementById('newClinicAddress').value = '';
@@ -897,7 +891,7 @@ async function addClinic(){
 
 async function deleteClinic(id){
   if(!confirm('Delete this clinic? Related schedule rows will also be removed.')) return;
-  await sb.from('da_clinics').delete().eq('id', id);
+  await sb.rpc('da_owner_delete_clinic', { p_token: OWNER.session_token, p_clinic_id: id });
   await refreshData();
 }
 
@@ -907,7 +901,7 @@ async function addDoctor(){
   const email = document.getElementById('newDoctorEmail').value.trim();
   const booking_mode = document.getElementById('newDoctorMode').value;
   if(!name){ alert('Enter doctor name'); return; }
-  const { error } = await sb.from('da_doctors').insert({ owner_id: OWNER.id, name, telegram_chat_id: telegram_chat_id || null, email: email || null, booking_mode });
+  const { error } = await sb.rpc('da_owner_add_doctor', { p_token: OWNER.session_token, p_name: name, p_telegram_chat_id: telegram_chat_id || null, p_email: email || null, p_booking_mode: booking_mode });
   if(error){ alert('Could not add provider: ' + error.message); return; }
   document.getElementById('newDoctorName').value = '';
   document.getElementById('newDoctorTelegram').value = '';
@@ -918,13 +912,13 @@ async function addDoctor(){
 
 async function deleteDoctor(id){
   if(!confirm('Delete this doctor? Related schedule rows will also be removed.')) return;
-  await sb.from('da_doctors').delete().eq('id', id);
+  await sb.rpc('da_owner_delete_doctor', { p_token: OWNER.session_token, p_doctor_id: id });
   await refreshData();
 }
 
 async function toggleBookingMode(id, currentMode){
   const newMode = currentMode === 'instant' ? 'request' : 'instant';
-  await sb.from('da_doctors').update({ booking_mode: newMode }).eq('id', id);
+  await sb.rpc('da_owner_set_doctor_booking_mode', { p_token: OWNER.session_token, p_doctor_id: id, p_booking_mode: newMode });
   await refreshData();
 }
 
@@ -940,24 +934,26 @@ async function addSchedule(){
   const session = document.getElementById('schSession').value;
   if(!doctor_id || !clinic_id){ alert('Add at least one clinic and doctor first'); return; }
 
-  const row = { owner_id: OWNER.id, doctor_id, clinic_id, day_of_week, session };
+  let morning_start=null, morning_end=null, evening_start=null, evening_end=null;
   if(session === 'full_day'){
     const start = document.getElementById('schStartTime').value;
     const end = document.getElementById('schEndTime').value;
     if(!start || !end){ alert('Set start and end time for Full Day'); return; }
-    row.morning_start = start;
-    row.morning_end = end;
-    row.evening_start = start;
-    row.evening_end = end;
+    morning_start = start; morning_end = end; evening_start = start; evening_end = end;
   }
-  const { error } = await sb.from('da_schedule').insert(row);
+  const { error } = await sb.rpc('da_owner_add_schedule', {
+    p_token: OWNER.session_token, p_doctor_id: doctor_id, p_clinic_id: clinic_id,
+    p_day_of_week: day_of_week, p_session: session,
+    p_morning_start: morning_start, p_morning_end: morning_end,
+    p_evening_start: evening_start, p_evening_end: evening_end
+  });
   if(error){ alert('Could not add schedule row: ' + error.message); return; }
   await refreshData();
   alert('Schedule row added');
 }
 
 async function deleteSchedule(id){
-  await sb.from('da_schedule').delete().eq('id', id);
+  await sb.rpc('da_owner_delete_schedule', { p_token: OWNER.session_token, p_schedule_id: id });
   await refreshData();
 }
 
@@ -968,25 +964,19 @@ async function exportExcel(){
   const msgEl = document.getElementById('exportMsg');
   if(!from || !to){ msgEl.innerHTML = '<div class="msg err">Select both dates</div>'; return; }
 
-  const { data, error } = await sb.from('da_appointments')
-    .select('*, da_patients(name, phone, age, sex), confirmed_doctor:da_doctors!da_appointments_confirmed_doctor_id_fkey(name), confirmed_clinic:da_clinics(name)')
-    .eq('owner_id', OWNER.id)
-    .eq('status', 'confirmed')
-    .gte('confirmed_date', from)
-    .lte('confirmed_date', to)
-    .order('confirmed_date');
+  const { data, error } = await sb.rpc('da_owner_export_appointments', { p_token: OWNER.session_token, p_from: from, p_to: to });
 
   if(error || !data || data.length === 0){ msgEl.innerHTML = '<div class="msg err">No confirmed appointments in this range</div>'; return; }
 
   const rows = data.map(a => ({
     Date: fmtDate(a.confirmed_date),
     Time: a.confirmed_time,
-    Patient: a.da_patients.name,
-    Phone: a.da_patients.phone,
-    Age: a.da_patients.age,
-    Sex: a.da_patients.sex,
-    Doctor: a.confirmed_doctor ? a.confirmed_doctor.name : '',
-    Clinic: a.confirmed_clinic ? a.confirmed_clinic.name : '',
+    Patient: a.patient_name,
+    Phone: a.patient_phone,
+    Age: a.patient_age,
+    Sex: a.patient_sex,
+    Doctor: a.doctor_name || '',
+    Clinic: a.clinic_name || '',
     'Booked By': a.booked_by
   }));
 

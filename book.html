@@ -243,7 +243,7 @@ window.onload = async () => {
     return;
   }
 
-  const { data: owner } = await sb.from('da_owners').select('*').eq('id', OWNER_ID).eq('status','approved').maybeSingle();
+  const { data: owner } = await sb.from('da_owners').select('id,clinic_group_name,category,broad_category,status').eq('id', OWNER_ID).eq('status','approved').maybeSingle();
   if(!owner){
     document.getElementById('clinicSub').textContent = 'Organisation not found';
     document.getElementById('noOwnerCard').classList.remove('hidden');
@@ -284,7 +284,8 @@ async function checkPhone(){
   clearMsg('loginMsg');
   const phone = document.getElementById('loginPhone').value.trim();
   if(phone.length < 10){ showMsg('loginMsg','Please enter a valid 10-digit mobile number','err'); return; }
-  const { data, error } = await sb.from('da_patients').select('*').eq('owner_id', OWNER_ID).eq('phone', phone).maybeSingle();
+  const { data: rows, error } = await sb.rpc('da_patient_lookup', { p_owner_id: OWNER_ID, p_phone: phone });
+  const data = rows && rows[0];
   if(error){ showMsg('loginMsg','Something went wrong. Try again.','err'); return; }
   if(data){
     localStorage.setItem('da_phone_' + OWNER_ID, phone);
@@ -303,14 +304,7 @@ async function checkPhone(){
 }
 
 async function sendPatientOtp(){
-  const otp = String(Math.floor(100000 + Math.random()*900000));
-  const expires = new Date(Date.now() + 10*60*1000).toISOString();
-  await sb.from('da_patients').update({reset_otp: otp, reset_otp_expires: expires}).eq('id', pendingPatient.id);
-  await fetch('https://telegram-notify.unigoods2026.workers.dev/', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action:'sendEmail', to: pendingPatient.email, subject:'Your login code',
-      html:'<p>Your login code is:</p><h2 style="letter-spacing:4px;">'+otp+'</h2><p style="font-size:13px;color:#666;">This code expires in 10 minutes. If you didn\'t request this, you can ignore this email.</p>'})
-  });
+  await sb.rpc('da_patient_request_otp', { p_patient_id: pendingPatient.id });
   document.getElementById('otpEmailShown').textContent = pendingPatient.email;
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('otpCard').classList.remove('hidden');
@@ -328,11 +322,10 @@ async function verifyPatientOtp(){
   clearMsg('otpMsg');
   const code = document.getElementById('otpCode').value.trim();
   if(!/^[0-9]{6}$/.test(code)){ showMsg('otpMsg','Enter the 6-digit code from your email.','err'); return; }
-  const { data: fresh, error } = await sb.from('da_patients').select('reset_otp,reset_otp_expires').eq('id', pendingPatient.id).maybeSingle();
-  if(error || !fresh || fresh.reset_otp !== code || new Date(fresh.reset_otp_expires) < new Date()){
+  const { error } = await sb.rpc('da_patient_verify_otp', { p_patient_id: pendingPatient.id, p_otp: code });
+  if(error){
     showMsg('otpMsg','Incorrect or expired code. Please try again or resend.','err'); return;
   }
-  await sb.from('da_patients').update({reset_otp:null, reset_otp_expires:null}).eq('id', pendingPatient.id);
   localStorage.setItem('da_verified_' + pendingPatient.id, '1');
   currentPatient = pendingPatient;
   pendingPatient = null;
@@ -353,11 +346,11 @@ async function registerPatient(){
     showMsg('regMsg','Name, Sex, Age and Mobile number are mandatory','err');
     return;
   }
-  const { data, error } = await sb.from('da_patients').insert({
-    owner_id: OWNER_ID, name, sex, age: parseInt(age), phone, email: email || null, telegram_id: telegram_id || null
-  }).select().single();
+  const { data, error } = await sb.rpc('da_patient_register', {
+    p_owner_id: OWNER_ID, p_name: name, p_sex: sex, p_age: parseInt(age), p_phone: phone, p_email: email || null, p_telegram_id: telegram_id || null
+  });
 
-  if(error){ showMsg('regMsg','Could not save. Number may already be registered.','err'); return; }
+  if(error || !data){ showMsg('regMsg','Could not save. Number may already be registered.','err'); return; }
   currentPatient = data;
   localStorage.setItem('da_phone_' + OWNER_ID, phone);
   localStorage.setItem('da_verified_' + data.id, '1');

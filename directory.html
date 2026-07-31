@@ -50,7 +50,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let owners = [];
 
 window.onload = async () => {
-  const { data } = await sb.from('da_owners').select('*').eq('status', 'approved').order('clinic_group_name');
+  const { data } = await sb.from('da_owners').select('id,clinic_group_name,broad_category,category').eq('status', 'approved').order('clinic_group_name');
   owners = data || [];
   renderList();
 };
