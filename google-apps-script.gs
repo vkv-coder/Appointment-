@@ -20,6 +20,10 @@ const SUPPORT_EMAIL = "vkvcoder.support@gmail.com";
 const ADMIN_APPROVAL_URL = "https://appointment.anyapps.in/admin-approval.html";
 const DASHBOARD_URL = "https://appointment.anyapps.in/dashboard.html";
 
+// Fixed demo clinic owner (re-seeded nightly by reset_appointment_demo) -
+// its INSERT/UPDATE events must never page real Telegram/email.
+const DEMO_OWNER_ID = "a539635d-7c40-4f83-ae7c-7c517472bb1c";
+
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
@@ -28,6 +32,10 @@ function doPost(e) {
     if (payload.message) {
       handleTelegramMessage(payload.message);
       return HtmlService.createHtmlOutput("ok");
+    }
+
+    if (payload.record && payload.record.owner_id === DEMO_OWNER_ID) {
+      return HtmlService.createHtmlOutput("ok"); // skip demo-reset noise
     }
 
     if (payload.table === "da_owners" && payload.type === "INSERT") {
