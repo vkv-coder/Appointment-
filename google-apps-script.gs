@@ -1,8 +1,11 @@
 // ============================================================
-// DR APPOINTMENT - Notification Relay (v2, multi-clinic)
+// DR APPOINTMENT - Notification Relay (v3, multi-clinic)
 // Deploy this as a Web App (Execute as: Me, Access: Anyone)
 // Paste the deployment URL into TWO Supabase Database Webhooks:
-//   1. Table: da_owners       Events: Insert
+//   1. Table: da_owners       Events: Insert, Update   <-- Update added in v3;
+//      if your existing webhook is still Insert-only, edit it in Supabase
+//      Studio (Database -> Webhooks) to add Update, or owner approval/
+//      rejection emails below will never fire.
 //   2. Table: da_appointments Events: Insert, Update
 // ============================================================
 
@@ -38,8 +41,16 @@ function doPost(e) {
       return HtmlService.createHtmlOutput("ok"); // skip demo-reset noise
     }
 
-    if (payload.table === "da_owners" && payload.type === "INSERT") {
-      handleNewOwnerSignup(payload.record);
+    if (payload.table === "da_owners") {
+      if (payload.type === "INSERT") {
+        handleNewOwnerSignup(payload.record);
+      } else if (payload.type === "UPDATE") {
+        const oldStatus = payload.old_record && payload.old_record.status;
+        const newStatus = payload.record.status;
+        if (newStatus !== oldStatus && (newStatus === "approved" || newStatus === "rejected")) {
+          handleOwnerStatusChange(payload.record, newStatus);
+        }
+      }
     } else if (payload.table === "da_appointments") {
       if (payload.type === "INSERT") {
         if (payload.record.status === "confirmed") {
@@ -50,7 +61,13 @@ function doPost(e) {
       } else if (payload.type === "UPDATE") {
         const wasConfirmed = payload.old_record && payload.old_record.status === "confirmed";
         const isConfirmed = payload.record.status === "confirmed";
+        const wasRejected = payload.old_record && payload.old_record.status === "rejected";
+        const isRejected = payload.record.status === "rejected";
         if (isConfirmed && !wasConfirmed) handleConfirmed(payload.record, false);
+        // Assumed status value is "rejected" (matches da_owner_reject_appointment's
+        // naming and admin-approval.html's owner-status convention) - if the actual
+        // column uses a different string, adjust this check to match.
+        if (isRejected && !wasRejected) handleAppointmentRejected(payload.record);
       }
     }
 
@@ -87,6 +104,17 @@ function sbGet(table, filterCol, filterVal) {
   return data && data.length ? data[0] : null;
 }
 
+// ---------- send an email without letting a failure here (bad address, quota)
+// block whatever notification runs next in the same handler ----------
+function safeEmail(to, subject, body) {
+  if (!to) return;
+  try {
+    MailApp.sendEmail(to, subject, body);
+  } catch (e) {
+    Logger.log("Email to " + to + " failed: " + e.message);
+  }
+}
+
 // ---------- new clinic sign-up -> notify Vijay ----------
 function handleNewOwnerSignup(record) {
   const text =
@@ -98,7 +126,21 @@ function handleNewOwnerSignup(record) {
     `Approve here: ${ADMIN_APPROVAL_URL}`;
 
   sendTelegram(VIJAY_TELEGRAM_CHAT_ID, text);
-  MailApp.sendEmail(SUPPORT_EMAIL, "New Provider Sign-up - " + record.clinic_group_name, text);
+  safeEmail(SUPPORT_EMAIL, "New Provider Sign-up - " + record.clinic_group_name, text);
+}
+
+// ---------- owner sign-up approved/rejected -> notify the owner ----------
+function handleOwnerStatusChange(record, newStatus) {
+  const approved = newStatus === "approved";
+  const text = approved
+    ? `🎉 Your provider account for "${record.clinic_group_name}" has been approved!\n\n` +
+      `Log in to your dashboard: ${DASHBOARD_URL}\n` +
+      `Username: ${record.username}`
+    : `Your provider sign-up for "${record.clinic_group_name}" was not approved this time.\n\n` +
+      `Questions? Contact ${SUPPORT_EMAIL}`;
+
+  if (record.telegram_chat_id) sendTelegram(record.telegram_chat_id, text);
+  safeEmail(record.email, "Your Appointment provider account — " + (approved ? "Approved" : "Update"), text);
 }
 
 // ---------- new pending appointment request -> notify doctor/owner ----------
@@ -120,7 +162,21 @@ function handleNewRequest(record) {
   sendTelegramMulti(doctorChatId, text);
 
   const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
-  MailApp.sendEmail(emailTo, "New Appointment Request - " + doctorLabel, text);
+  safeEmail(emailTo, "New Appointment Request - " + doctorLabel, text);
+}
+
+// ---------- appointment rejected -> notify the patient ----------
+function handleAppointmentRejected(record) {
+  const patient = sbGet("da_patients", "id", record.patient_id);
+  if (!patient) return;
+
+  const text =
+    `Your appointment request for ${fmtDate(record.preferred_date)} (${record.preferred_session}) ` +
+    `could not be accommodated this time.\n\n` +
+    `Please try requesting a different date, or contact the clinic directly.`;
+
+  if (patient.telegram_id) sendTelegram(patient.telegram_id, text);
+  safeEmail(patient.email, "Your Appointment Request — Update", text);
 }
 
 // ---------- confirmed appointment -> notify user (and provider if instant-booked) ----------
@@ -138,7 +194,7 @@ function handleConfirmed(record, isInstant) {
     `Time: ${record.confirmed_time}`;
 
   if (patient && patient.telegram_id) sendTelegram(patient.telegram_id, text);
-  if (patient && patient.email) MailApp.sendEmail(patient.email, "Your Appointment is Confirmed", text);
+  if (patient && patient.email) safeEmail(patient.email, "Your Appointment is Confirmed", text);
 
   if (isInstant) {
     const owner = sbGet("da_owners", "id", record.owner_id);
@@ -151,7 +207,7 @@ function handleConfirmed(record, isInstant) {
     const chatId = doctor && doctor.telegram_chat_id ? doctor.telegram_chat_id : (owner && owner.telegram_chat_id ? owner.telegram_chat_id : VIJAY_TELEGRAM_CHAT_ID);
     sendTelegramMulti(chatId, providerText);
     const emailTo = (doctor && doctor.email) ? doctor.email : (owner && owner.email ? owner.email : SUPPORT_EMAIL);
-    MailApp.sendEmail(emailTo, "Instant Booking - " + (doctor ? doctor.name : ""), providerText);
+    safeEmail(emailTo, "Instant Booking - " + (doctor ? doctor.name : ""), providerText);
   }
 }
 
