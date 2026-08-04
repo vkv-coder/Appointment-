@@ -91,7 +91,8 @@ function renderOwners(data){
 }
 
 async function setStatus(id, status){
-  await sb.rpc('da_admin_set_owner_status', { p_owner_id: id, p_new_status: status, p_admin_password: adminPw });
+  const { error } = await sb.rpc('da_admin_set_owner_status', { p_owner_id: id, p_new_status: status, p_admin_password: adminPw });
+  if(error){ alert('Could not set status to "' + status + '": ' + error.message); }
   loadOwners();
 }
 </script>

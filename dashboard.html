@@ -545,10 +545,13 @@ function shareBookingLinkWhatsApp(){
 
 async function refreshData(){
   const d = await sb.from('da_doctors').select('*').eq('owner_id', OWNER.id);
-  doctors = d.data || [];
   const c = await sb.from('da_clinics').select('*').eq('owner_id', OWNER.id);
-  clinics = c.data || [];
   const s = await sb.from('da_schedule').select('*').eq('owner_id', OWNER.id);
+  if(d.error || c.error || s.error){
+    alert('Could not refresh Settings — showing possibly outdated data. ' + (d.error||c.error||s.error).message);
+  }
+  doctors = d.data || [];
+  clinics = c.data || [];
   schedule = s.data || [];
   renderSettingsLists();
 }
@@ -687,7 +690,8 @@ async function confirmAppt(id, btn){
 
 async function rejectAppt(id){
   if(!confirm('Reject this request?')) return;
-  await sb.rpc('da_owner_reject_appointment', { p_token: OWNER.session_token, p_appointment_id: id });
+  const { error } = await sb.rpc('da_owner_reject_appointment', { p_token: OWNER.session_token, p_appointment_id: id });
+  if(error){ alert('Could not reject request: ' + error.message); return; }
   loadPending();
 }
 
@@ -834,9 +838,10 @@ async function staffConfirmBooking(patientId){
 async function loadSchedule(){
   const date = document.getElementById('scheduleDate').value;
   if(!date) return;
-  const { data } = await sb.rpc('da_owner_schedule_appointments', { p_token: OWNER.session_token, p_date: date });
+  const { data, error } = await sb.rpc('da_owner_schedule_appointments', { p_token: OWNER.session_token, p_date: date });
 
   const view = document.getElementById('scheduleView');
+  if(error){ view.innerHTML = '<div class="card"><div class="empty">⚠️ Could not load schedule: ' + error.message + '</div></div>'; return; }
   if(!data || data.length === 0){ view.innerHTML = '<div class="card"><div class="empty">No confirmed appointments this date</div></div>'; return; }
 
   let html = '<div class="card">';
@@ -912,7 +917,8 @@ async function addClinic(){
 
 async function deleteClinic(id){
   if(!confirm('Delete this clinic? Related schedule rows will also be removed.')) return;
-  await sb.rpc('da_owner_delete_clinic', { p_token: OWNER.session_token, p_clinic_id: id });
+  const { error } = await sb.rpc('da_owner_delete_clinic', { p_token: OWNER.session_token, p_clinic_id: id });
+  if(error){ alert('Could not delete location: ' + error.message); return; }
   await refreshData();
 }
 
@@ -933,13 +939,15 @@ async function addDoctor(){
 
 async function deleteDoctor(id){
   if(!confirm('Delete this doctor? Related schedule rows will also be removed.')) return;
-  await sb.rpc('da_owner_delete_doctor', { p_token: OWNER.session_token, p_doctor_id: id });
+  const { error } = await sb.rpc('da_owner_delete_doctor', { p_token: OWNER.session_token, p_doctor_id: id });
+  if(error){ alert('Could not delete provider: ' + error.message); return; }
   await refreshData();
 }
 
 async function toggleBookingMode(id, currentMode){
   const newMode = currentMode === 'instant' ? 'request' : 'instant';
-  await sb.rpc('da_owner_set_doctor_booking_mode', { p_token: OWNER.session_token, p_doctor_id: id, p_booking_mode: newMode });
+  const { error } = await sb.rpc('da_owner_set_doctor_booking_mode', { p_token: OWNER.session_token, p_doctor_id: id, p_booking_mode: newMode });
+  if(error){ alert('Could not change booking mode: ' + error.message); return; }
   await refreshData();
 }
 
@@ -974,7 +982,8 @@ async function addSchedule(){
 }
 
 async function deleteSchedule(id){
-  await sb.rpc('da_owner_delete_schedule', { p_token: OWNER.session_token, p_schedule_id: id });
+  const { error } = await sb.rpc('da_owner_delete_schedule', { p_token: OWNER.session_token, p_schedule_id: id });
+  if(error){ alert('Could not delete schedule row: ' + error.message); return; }
   await refreshData();
 }
 
