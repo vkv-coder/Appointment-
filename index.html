@@ -114,6 +114,12 @@ function toggleProvider(){
   document.getElementById('providerExtra').classList.toggle('hidden');
 }
 document.getElementById('providerActions').addEventListener('click', e => e.stopPropagation());
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
