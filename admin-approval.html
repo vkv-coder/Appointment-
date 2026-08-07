@@ -66,7 +66,8 @@ async function checkPw(){
 }
 
 async function loadOwners(){
-  const { data } = await sb.rpc('da_admin_list_owners', { p_admin_password: adminPw });
+  const { data, error } = await sb.rpc('da_admin_list_owners', { p_admin_password: adminPw });
+  if(error){ document.getElementById('list').innerHTML = '<div class="card empty">⚠️ Could not load — try again</div>'; return; }
   renderOwners(data || []);
 }
 

@@ -480,12 +480,13 @@ async function refreshInstantTimeSlots(){
   const end = session === 'morning' ? opt.dataset.me : opt.dataset.ee;
   const allSlots = genSlots(start, end);
 
-  const { data: taken } = await sb.from('da_appointments')
+  const { data: taken, error } = await sb.from('da_appointments')
     .select('confirmed_time')
     .eq('confirmed_doctor_id', doctorId)
     .eq('confirmed_clinic_id', clinicSel.value)
     .eq('confirmed_date', date)
     .eq('status', 'confirmed');
+  if(error){ slotSel.innerHTML = '<option value="">⚠️ Could not load slots</option>'; return; }
   const takenTimes = (taken || []).map(t => t.confirmed_time ? t.confirmed_time.slice(0,5) : '');
   const free = allSlots.filter(s => !takenTimes.includes(s));
   slotSel.innerHTML = free.length ? free.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No free slots</option>';
@@ -553,7 +554,8 @@ async function loadAppointments(){
     .order('created_at', { ascending: false });
 
   const list = document.getElementById('apptList');
-  if(error || !data || data.length === 0){
+  if(error){ list.innerHTML = '<div class="sub">⚠️ Could not load appointments — try again</div>'; return; }
+  if(!data || data.length === 0){
     list.innerHTML = '<div class="sub">No appointments yet.</div>';
     return;
   }
