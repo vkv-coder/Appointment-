@@ -74,6 +74,14 @@
     </div>
   </div>
 
+  <!-- TRIAL ENDED / BLOCKED -->
+  <div class="card hidden" id="blockedCard" style="text-align:center;">
+    <h1 id="blockedTitle">Trial Ended</h1>
+    <div class="sub" id="blockedMsg" style="margin-bottom:16px;">Your free trial has ended.</div>
+    <div style="font-size:13px;color:#666;">Contact us to continue using your dashboard:<br><a href="mailto:vkvcoder.support@gmail.com" style="color:var(--teal);">vkvcoder.support@gmail.com</a></div>
+    <button class="btn wide" style="margin-top:16px;background:#455A64;" onclick="document.getElementById('blockedCard').classList.add('hidden');document.getElementById('gateCard').classList.remove('hidden');">&larr; Back to Login</button>
+  </div>
+
   <!-- FORGOT PASSWORD MODAL -->
   <div id="forgotModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;">
     <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
@@ -342,7 +350,9 @@ window.onload = () => {
     const savedOwner = localStorage.getItem('da_owner');
     if(savedOwner){
       OWNER = JSON.parse(savedOwner);
-      enterDash();
+      if(OWNER.is_blocked){ OWNER=null; localStorage.removeItem('da_owner'); showBlocked('Account Blocked', 'Your account has been blocked. Please contact support.'); }
+      else if(OWNER.trial_started_at && trialDaysLeft(OWNER) <= 0){ OWNER=null; localStorage.removeItem('da_owner'); showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); }
+      else enterDash();
     }
   }
   const offDaysDiv = document.getElementById('newClinicOffDays');
@@ -395,6 +405,24 @@ async function confirmForgotPass(){
   document.getElementById('gateMsg').innerHTML='<div class="msg ok">Password updated! Please login with new password.</div>';
 }
 
+const TRIAL_DAYS = 30;
+
+function trialDaysLeft(o){
+  if(!o.trial_started_at) return TRIAL_DAYS; // not started yet
+  const start = new Date(o.trial_started_at);
+  const extra = o.trial_extended_days || 0;
+  const totalDays = TRIAL_DAYS + extra;
+  const end = new Date(start.getTime() + totalDays * 86400000);
+  return Math.ceil((end - new Date()) / 86400000);
+}
+
+function showBlocked(title, msg){
+  document.getElementById('gateCard').classList.add('hidden');
+  document.getElementById('blockedTitle').textContent = title;
+  document.getElementById('blockedMsg').textContent = msg;
+  document.getElementById('blockedCard').classList.remove('hidden');
+}
+
 async function doLogin(){
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
@@ -403,6 +431,8 @@ async function doLogin(){
   const row = data && data[0];
   if(error || !row){ msgEl.innerHTML = '<div class="msg err">Invalid username or password</div>'; return; }
   if(row.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
+  if(row.is_blocked){ showBlocked('Account Blocked', 'Your account has been blocked. Please contact support.'); return; }
+  if(row.trial_started_at && trialDaysLeft(row) <= 0){ showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); return; }
   OWNER = row;
   localStorage.setItem('da_owner', JSON.stringify(row));
   enterDash();
