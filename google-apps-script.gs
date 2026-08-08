@@ -7,6 +7,9 @@
 //      Studio (Database -> Webhooks) to add Update, or owner approval/
 //      rejection emails below will never fire.
 //   2. Table: da_appointments Events: Insert, Update
+//
+// Also add a time-driven trigger for sendTrialEndingReminders (daily) -
+// see the comment on that function below for exact steps.
 // ============================================================
 
 const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
@@ -49,6 +52,10 @@ function doPost(e) {
         const newStatus = payload.record.status;
         if (newStatus !== oldStatus && (newStatus === "approved" || newStatus === "rejected")) {
           handleOwnerStatusChange(payload.record, newStatus);
+        }
+        const hadNoTrial = payload.old_record && !payload.old_record.trial_started_at;
+        if (hadNoTrial && payload.record.trial_started_at) {
+          handleTrialStarted(payload.record);
         }
       }
     } else if (payload.table === "da_appointments") {
@@ -115,18 +122,30 @@ function safeEmail(to, subject, body) {
   }
 }
 
-// ---------- new clinic sign-up -> notify Vijay ----------
+// ---------- new clinic sign-up -> notify Vijay (no approval needed - just an FYI) ----------
 function handleNewOwnerSignup(record) {
   const text =
-    `🆕 New Provider Sign-up\n` +
+    `🆕 New Provider Sign-up (auto-active, 30-day free trial)\n` +
     `Organisation: ${record.clinic_group_name}\n` +
     `Owner: ${record.owner_name}\n` +
     `Phone: ${record.phone}\n` +
     `Username: ${record.username}\n\n` +
-    `Approve here: ${ADMIN_APPROVAL_URL}`;
+    `View/manage: ${ADMIN_APPROVAL_URL}`;
 
   sendTelegram(VIJAY_TELEGRAM_CHAT_ID, text);
   safeEmail(SUPPORT_EMAIL, "New Provider Sign-up - " + record.clinic_group_name, text);
+}
+
+// ---------- owner's free trial has actually started (first clinic/doctor added) -> notify Vijay ----------
+function handleTrialStarted(record) {
+  const text =
+    `🎯 Free trial started\n` +
+    `Organisation: ${record.clinic_group_name}\n` +
+    `Owner: ${record.owner_name}\n` +
+    `Phone: ${record.phone}\n\n` +
+    `30-day trial clock is now running for this provider.`;
+
+  sendTelegram(VIJAY_TELEGRAM_CHAT_ID, text);
 }
 
 // ---------- owner sign-up approved/rejected -> notify the owner ----------
@@ -229,4 +248,64 @@ function sendTelegram(chatId, text) {
 function sendTelegramMulti(chatIdsStr, text) {
   if (!chatIdsStr) return;
   String(chatIdsStr).split(",").map(s => s.trim()).filter(Boolean).forEach(id => sendTelegram(id, text));
+}
+
+// ---------- helper: PATCH a row in Supabase ----------
+function sbPatch(table, filterCol, filterVal, body) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${filterCol}=eq.${filterVal}`;
+  UrlFetchApp.fetch(url, {
+    method: "patch",
+    contentType: "application/json",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+}
+
+// ============================================================
+// TRIAL-ENDING REMINDER - scheduled, run daily
+// TRIGGER SETUP (one time):
+//   GAS -> Triggers (clock icon, left sidebar) -> + Add Trigger
+//   Function: sendTrialEndingReminders
+//   Event source: Time-driven -> Day timer -> pick any time (e.g. 9am-10am)
+//   Save
+// Sends the owner (not just Vijay) a heads-up exactly 3 days before their
+// 30-day trial ends, once per trial window (trial_reminder_sent guards
+// against re-sending daily for all 3 days; da_admin_extend_trial resets
+// it so an extended trial gets its own fresh reminder later).
+// ============================================================
+function sendTrialEndingReminders() {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/da_owners?status=eq.approved&is_blocked=eq.false&trial_reminder_sent=eq.false&trial_started_at=not.is.null&select=id,clinic_group_name,owner_name,email,telegram_chat_id,trial_started_at,trial_extended_days&id=neq.${DEMO_OWNER_ID}`;
+    const res = UrlFetchApp.fetch(url, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
+      muteHttpExceptions: true
+    });
+    const owners = JSON.parse(res.getContentText());
+    if (!owners || !owners.length) return;
+
+    const TRIAL_DAYS = 30;
+    const now = new Date();
+
+    owners.forEach(o => {
+      const start = new Date(o.trial_started_at);
+      const totalDays = TRIAL_DAYS + (o.trial_extended_days || 0);
+      const end = new Date(start.getTime() + totalDays * 86400000);
+      const daysLeft = Math.ceil((end - now) / 86400000);
+
+      if (daysLeft === 3) {
+        const text =
+          `⏳ Your free trial ends in 3 days\n\n` +
+          `Your 30-day free trial for "${o.clinic_group_name}" ends on ${fmtDate(end.toISOString().slice(0,10))}.\n\n` +
+          `Contact ${SUPPORT_EMAIL} to extend your trial or move to a paid plan and keep your dashboard running without interruption.`;
+
+        if (o.telegram_chat_id) sendTelegramMulti(o.telegram_chat_id, text);
+        safeEmail(o.email, "Your Appointment free trial ends in 3 days", text);
+
+        sbPatch("da_owners", "id", o.id, { trial_reminder_sent: true });
+      }
+    });
+  } catch (err) {
+    Logger.log("sendTrialEndingReminders error: " + err.message);
+  }
 }

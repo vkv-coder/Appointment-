@@ -128,6 +128,8 @@
       <div><a href="index.html" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">Home</a> &nbsp;|&nbsp; <a href="faq.html" style="font-size:12.5px;color:var(--teal);text-decoration:underline;">How does this work?</a> &nbsp;|&nbsp; <span class="logout" onclick="logout()">Logout</span></div>
     </div>
 
+    <div id="trialBanner" class="hidden" style="border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:600;text-align:center;"></div>
+
     <div class="card" style="padding:14px 16px;">
       <label style="margin:0 0 6px;">Your Booking Link (share this with patients/clients)</label>
       <div style="display:flex;gap:8px;">
@@ -548,12 +550,33 @@ async function enterDash(){
   document.getElementById('mainDash').classList.remove('hidden');
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
   document.getElementById('myBookingLink').value = `${window.location.origin}/book.html?owner=${OWNER.id}`;
+  updateTrialBanner();
   populateProfileForm();
   await refreshData();
   initDatePicker('scheduleDate', loadSchedule);
   initDatePicker('exportFrom');
   initDatePicker('exportTo');
   loadPending();
+}
+
+function updateTrialBanner(){
+  const b = document.getElementById('trialBanner');
+  if(!OWNER.trial_started_at){
+    b.classList.remove('hidden');
+    b.style.background = 'linear-gradient(135deg,#0097A7,#00ACC1)';
+    b.style.color = '#fff';
+    b.textContent = '🎁 Your 30-day free trial starts as soon as you add your first clinic or doctor';
+    return;
+  }
+  const d = trialDaysLeft(OWNER);
+  if(d <= 3 && d > 0){
+    b.classList.remove('hidden');
+    b.style.background = 'linear-gradient(135deg,#F57C00,#FF9800)';
+    b.style.color = '#fff';
+    b.textContent = '⚠️ Trial: '+d+' day'+(d===1?'':'s')+' remaining — contact vkvcoder.support@gmail.com to continue';
+  } else {
+    b.classList.add('hidden');
+  }
 }
 
 function copyBookingLink(){
