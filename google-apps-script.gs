@@ -276,7 +276,7 @@ function sbPatch(table, filterCol, filterVal, body) {
 // ============================================================
 function sendTrialEndingReminders() {
   try {
-    const url = `${SUPABASE_URL}/rest/v1/da_owners?status=eq.approved&is_blocked=eq.false&trial_reminder_sent=eq.false&trial_started_at=not.is.null&select=id,clinic_group_name,owner_name,email,telegram_chat_id,trial_started_at,trial_extended_days&id=neq.${DEMO_OWNER_ID}`;
+    const url = `${SUPABASE_URL}/rest/v1/da_owners?status=eq.approved&is_blocked=eq.false&is_paid=eq.false&trial_reminder_sent=eq.false&trial_started_at=not.is.null&select=id,clinic_group_name,owner_name,email,telegram_chat_id,trial_started_at,trial_extended_days&id=neq.${DEMO_OWNER_ID}`;
     const res = UrlFetchApp.fetch(url, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
       muteHttpExceptions: true

@@ -273,6 +273,10 @@
     </div>
 
     <div id="exportTab" class="hidden">
+      <div id="exportPaidNotice" class="hidden card" style="background:#FFF3E0;border-color:#FFCC80;">
+        <div style="font-size:13.5px;color:#E65100;font-weight:600;">📊 Excel export is a paid-plan feature</div>
+        <div style="font-size:12.5px;color:#8B5000;margin-top:4px;">Contact <a href="mailto:vkvcoder.support@gmail.com" style="color:#8B5000;">vkvcoder.support@gmail.com</a> to upgrade and unlock record downloads.</div>
+      </div>
       <div class="card">
         <label>From Date</label>
         <input type="hidden" id="exportFrom">
@@ -353,7 +357,7 @@ window.onload = () => {
     if(savedOwner){
       OWNER = JSON.parse(savedOwner);
       if(OWNER.is_blocked){ OWNER=null; localStorage.removeItem('da_owner'); showBlocked('Account Blocked', 'Your account has been blocked. Please contact support.'); }
-      else if(OWNER.trial_started_at && trialDaysLeft(OWNER) <= 0){ OWNER=null; localStorage.removeItem('da_owner'); showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); }
+      else if(!OWNER.is_paid && OWNER.trial_started_at && trialDaysLeft(OWNER) <= 0){ OWNER=null; localStorage.removeItem('da_owner'); showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); }
       else enterDash();
     }
   }
@@ -434,7 +438,7 @@ async function doLogin(){
   if(error || !row){ msgEl.innerHTML = '<div class="msg err">Invalid username or password</div>'; return; }
   if(row.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
   if(row.is_blocked){ showBlocked('Account Blocked', 'Your account has been blocked. Please contact support.'); return; }
-  if(row.trial_started_at && trialDaysLeft(row) <= 0){ showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); return; }
+  if(!row.is_paid && row.trial_started_at && trialDaysLeft(row) <= 0){ showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); return; }
   OWNER = row;
   localStorage.setItem('da_owner', JSON.stringify(row));
   enterDash();
@@ -560,7 +564,9 @@ async function enterDash(){
 }
 
 function updateTrialBanner(){
+  document.getElementById('exportPaidNotice').classList.toggle('hidden', !!OWNER.is_paid);
   const b = document.getElementById('trialBanner');
+  if(OWNER.is_paid){ b.classList.add('hidden'); return; }
   if(!OWNER.trial_started_at){
     b.classList.remove('hidden');
     b.style.background = 'linear-gradient(135deg,#0097A7,#00ACC1)';
@@ -1045,6 +1051,7 @@ async function exportExcel(){
   const from = document.getElementById('exportFrom').value;
   const to = document.getElementById('exportTo').value;
   const msgEl = document.getElementById('exportMsg');
+  if(!OWNER.is_paid){ msgEl.innerHTML = '<div class="msg err">📊 Excel export is a paid-plan feature. Contact <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a> to upgrade.</div>'; return; }
   if(!from || !to){ msgEl.innerHTML = '<div class="msg err">Select both dates</div>'; return; }
 
   const { data, error } = await sb.rpc('da_owner_export_appointments', { p_token: OWNER.session_token, p_from: from, p_to: to });

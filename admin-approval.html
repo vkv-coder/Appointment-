@@ -86,6 +86,7 @@ function trialDaysLeft(o){
 function trialPillHtml(o){
   if(o.status !== 'approved') return '';
   if(o.is_blocked) return '<span class="pill blocked">BLOCKED</span>';
+  if(o.is_paid) return '<span class="pill" style="background:#D9EAD3;color:#2E7D32;">PAID</span>';
   if(!o.trial_started_at) return '<span class="pill trial">not started</span>';
   const left = trialDaysLeft(o);
   return left > 0 ? `<span class="pill trial">trial: ${left}d left</span>` : '<span class="pill expired">trial expired</span>';
@@ -110,6 +111,7 @@ function renderOwners(data){
       ${o.status === 'approved' ? `
         <button class="btn sm" onclick="extendTrial('${o.id}')">⏱️ Extend Trial</button>
         <button class="btn sm" style="margin-left:8px;background:${o.is_blocked?'#2E7D32':'#B12E2E'};" onclick="toggleBlocked('${o.id}',${!o.is_blocked})">${o.is_blocked?'Unblock':'Block'}</button>
+        <button class="btn sm" style="margin-left:8px;background:${o.is_paid?'#B12E2E':'#2E7D32'};" onclick="togglePaid('${o.id}',${!o.is_paid})">${o.is_paid?'Mark Unpaid':'💳 Mark Paid'}</button>
       ` : ''}
     </div>
   `).join('');
@@ -132,6 +134,12 @@ async function extendTrial(id){
 async function toggleBlocked(id, blocked){
   if(blocked && !confirm('Block this provider? They will lose dashboard access immediately.')) return;
   const { error } = await sb.rpc('da_admin_set_owner_blocked', { p_owner_id: id, p_admin_password: adminPw, p_blocked: blocked });
+  if(error){ alert('Could not update: ' + error.message); return; }
+  loadOwners();
+}
+
+async function togglePaid(id, paid){
+  const { error } = await sb.rpc('da_admin_set_paid', { p_owner_id: id, p_admin_password: adminPw, p_paid: paid });
   if(error){ alert('Could not update: ' + error.message); return; }
   loadOwners();
 }
