@@ -308,6 +308,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let OWNER = null;
+let isDemoSession = false;
 let doctors = [], clinics = [], schedule = [];
 let staffCurrentPatient = null;
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -439,14 +440,16 @@ async function doLogin(){
   if(row.status !== 'approved'){ msgEl.innerHTML = '<div class="msg err">Your account is not approved yet</div>'; return; }
   if(row.is_blocked){ showBlocked('Account Blocked', 'Your account has been blocked. Please contact support.'); return; }
   if(!row.is_paid && row.trial_started_at && trialDaysLeft(row) <= 0){ showBlocked('Trial Ended', 'Your '+TRIAL_DAYS+'-day free trial has ended. Your data is safe and waiting — contact us to continue.'); return; }
+  isDemoSession = false;
   OWNER = row;
   localStorage.setItem('da_owner', JSON.stringify(row));
   enterDash();
 }
 
 function logout(){
-  localStorage.removeItem('da_owner');
+  if(!isDemoSession) localStorage.removeItem('da_owner');
   OWNER = null;
+  isDemoSession = false;
   document.getElementById('mainDash').classList.add('hidden');
   document.getElementById('gateCard').classList.remove('hidden');
 }
@@ -456,8 +459,8 @@ async function tryDemoLogin(){
   const { data, error } = await sb.rpc('da_owner_login', { p_username: 'demo_owner', p_password: 'AppointDemo2026!' });
   const row = data && data[0];
   if(error || !row){ msgEl.innerHTML = '<div class="msg err">Demo unavailable right now</div>'; return; }
+  isDemoSession = true;
   OWNER = row;
-  localStorage.setItem('da_owner', JSON.stringify(row));
   enterDash();
 }
 
@@ -533,7 +536,7 @@ async function saveOwnerProfile(){
   }
 
   Object.assign(OWNER, updates);
-  localStorage.setItem('da_owner', JSON.stringify(OWNER));
+  if(!isDemoSession) localStorage.setItem('da_owner', JSON.stringify(OWNER));
   document.getElementById('clinicHeading').textContent = OWNER.clinic_group_name;
   document.getElementById('editPassword').value = '';
   msgEl.innerHTML = '<div class="msg">Profile saved</div>';
@@ -548,7 +551,7 @@ async function enterDash(){
     return;
   }
   OWNER = Object.assign({}, row, { session_token: OWNER.session_token });
-  localStorage.setItem('da_owner', JSON.stringify(OWNER));
+  if(!isDemoSession) localStorage.setItem('da_owner', JSON.stringify(OWNER));
 
   document.getElementById('gateCard').classList.add('hidden');
   document.getElementById('mainDash').classList.remove('hidden');
